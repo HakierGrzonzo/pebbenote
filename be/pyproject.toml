@@ -1,0 +1,24 @@
+[tool.poetry]
+name = "pebbenote"
+version = "0.1.0"
+description = "Backend for pebbenote"
+authors = ["Grzegorz Koperwas <admin@grzegorzkoperwas.site>"]
+license = "GPL"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.13"
+ollama = "^0.6.0"
+fastapi = "^0.120.4"
+pydantic = "^2.12.3"
+sqlalchemy = {extras = ["asyncio"], version = "^2.0.44"}
+asyncpg = "^0.30.0"
+pydantic-settings = "^2.11.0"
+
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.14.3"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
