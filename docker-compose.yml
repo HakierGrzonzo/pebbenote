@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:17
+    volumes:
+      - app_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      PGUSER: postgres
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready", "-d", "postgres" ]
+      interval: 2s
+      timeout: 4s
+      retries: 5
+      start_period: 4s
+
+  be:
+    build:
+      context: ./be
+    develop:
+      watch:
+        - action: sync
+          path: ./be/
+          target: /app
+          initial_sync: true
+        - action: rebuild
+          path: ./be/pyproject.toml
+    ports:
+      - "8000:80"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_HOST: db 
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+
+
+volumes:
+  app_data:
+    driver: local
