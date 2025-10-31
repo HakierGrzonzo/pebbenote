@@ -1,9 +1,9 @@
 from sqlalchemy import Text, Uuid, func
 from sqlalchemy.orm import mapped_column
-from db import DeclarativeBase
+from .db import Base
 
 
-class Note(DeclarativeBase):
+class Note(Base):
     __tablename__ = "note"
     note_id = mapped_column(
         Uuid, primary_key=True, server_default=func.gen_random_uuid()

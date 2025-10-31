@@ -2,7 +2,7 @@ import asyncio
 from logging.config import fileConfig
 
 from sqlalchemy.engine import Connection
-from pebbenote.db import postgresql_url, DeclarativeBase
+from pebbenote.db import postgresql_url, Base
 import pebbenote.tables  # noqa: F401
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -22,7 +22,7 @@ if config.config_file_name is not None:
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-target_metadata = DeclarativeBase.metadata
+target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
