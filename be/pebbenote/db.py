@@ -1,5 +1,6 @@
-from typing import Any, AsyncGenerator
+from typing import Annotated, Any, AsyncGenerator
 
+from fastapi import Depends
 from sqlalchemy.orm import DeclarativeBase
 
 from .config import settings
@@ -22,6 +23,9 @@ async_session = async_sessionmaker(async_engine, expire_on_commit=True)
 async def get_db() -> AsyncGenerator[AsyncSession, Any]:
     async with async_session() as session, session.begin():
         yield session
+
+
+DbSession = Annotated[AsyncSession, Depends(get_db)]
 
 
 class Base(DeclarativeBase):
