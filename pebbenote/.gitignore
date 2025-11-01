@@ -1,1 +1,3 @@
 build
+.lock*
+compile_flags.txt
