@@ -3,7 +3,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 
 from pebbenote.notes.repository import NoteRepository
-from pebbenote.notes.schemas import NoteEditModel, NoteModel
+from pebbenote.notes.schemas import NoteEditModel, NoteModel, NoteViewModel
+from pebbenote.notes.view import NoteView
 
 
 note_router = APIRouter(prefix="/note", tags=["Notes"])
@@ -18,9 +19,9 @@ async def list_notes(
 
 @note_router.get("/{note_id}")
 async def get_note_by_id(
-    repository: Annotated[NoteRepository, Depends()], note_id: UUID
-) -> NoteModel:
-    return await repository.get_note_by_id(note_id)
+    view: Annotated[NoteView, Depends()], note_id: UUID
+) -> NoteViewModel:
+    return await view.get_note_by_id(note_id)
 
 
 @note_router.post("/")
