@@ -24,6 +24,15 @@ async def get_note_by_id(
     return await view.get_note_by_id(note_id)
 
 
+@note_router.patch("/{note_id}")
+async def edit_note_by_id(
+    repository: Annotated[NoteRepository, Depends()],
+    note_id: UUID,
+    note: NoteEditModel,
+) -> NoteModel:
+    return await repository.update_note(note_id, note)
+
+
 @note_router.post("/")
 async def create_note(
     repository: Annotated[NoteRepository, Depends()],

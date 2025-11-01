@@ -35,6 +35,7 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
       POSTGRES_HOST: db 
+      OLLAMA_HOST: "ryzenrig.koperwas.local"
     depends_on:
       db:
         condition: service_healthy

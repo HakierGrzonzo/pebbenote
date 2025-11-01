@@ -2,7 +2,6 @@ from logging import getLogger
 
 from ollama import AsyncClient, ChatResponse
 
-from ..config import settings
 
 from .base import AIAdapter
 
@@ -10,8 +9,7 @@ logger = getLogger(__name__)
 
 
 class OllamaAdapter(AIAdapter):
-    model = settings.OLLAMA_MODEL
-    vision_model = settings.OLLAMA_VISION_MODEL
+    model = "qwen3:30b"
 
     def __init__(self) -> None:
         self._ollama = AsyncClient()
