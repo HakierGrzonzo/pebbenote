@@ -1,4 +1,6 @@
 #include <pebble.h>
+#include <stdint.h>
+#include <string.h>
 
 static Window *s_main_window;
 static TextLayer *s_output_layer;
@@ -6,14 +8,47 @@ static TextLayer *s_output_layer;
 static DictationSession *s_dictation_session;
 static char s_last_text[512];
 
+static const uint32_t MESSAGE_KEY_Dictation = 0x0;
+
+// Largest expected inbox and outbox message sizes
+const uint32_t inbox_size = 0;
+const uint32_t outbox_size = 512;
+
+
+static void display_text(char* text) {
+    strncpy(s_last_text, text, sizeof(s_last_text) - 1);
+    text_layer_set_text(s_output_layer, s_last_text);
+}
+
+static void send_dictation(char* transcription) {
+  app_message_open(inbox_size, outbox_size);
+  DictionaryIterator *out_iter;
+  AppMessageResult result = app_message_outbox_begin(&out_iter);
+
+  if (result != APP_MSG_OK) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to app_message_outbox_begin");
+    return;
+  }
+  dict_write_cstring(out_iter, MESSAGE_KEY_Dictation, transcription);
+  dict_write_end(out_iter);
+
+  result = app_message_outbox_send();
+  if (result != APP_MSG_OK) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to send the message");
+    return;
+  }
+  APP_LOG(APP_LOG_LEVEL_INFO, "Message sent");
+  display_text("Done!");
+} 
+
+
 /******************************* Dictation API ********************************/
 
 static void dictation_session_callback(DictationSession *session, DictationSessionStatus status, 
                                        char *transcription, void *context) {
   if(status == DictationSessionStatusSuccess) {
     // Display the dictated text
-    snprintf(s_last_text, sizeof(s_last_text), "Transcription:\n\n%s", transcription);
-    text_layer_set_text(s_output_layer, s_last_text);
+    send_dictation(transcription);
   } else {
     // Display the reason for any error
     static char s_failed_buff[128];
