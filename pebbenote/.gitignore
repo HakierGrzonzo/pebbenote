@@ -1,3 +1,5 @@
 build
 .lock*
 compile_flags.txt
+node_modules
+src/ts-build

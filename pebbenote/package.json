@@ -2,7 +2,9 @@
   "name": "pebbenote",
   "author": "MakeAwesomeHappen",
   "version": "1.0.0",
-  "keywords": ["pebble-app"],
+  "keywords": [
+    "pebble-app"
+  ],
   "private": true,
   "dependencies": {},
   "pebble": {
@@ -27,5 +29,11 @@
     "resources": {
       "media": []
     }
+  },
+  "devDependencies": {
+    "pkts": "^0.2.1"
+  },
+  "scripts": {
+    "build": "pkts build"
   }
 }
