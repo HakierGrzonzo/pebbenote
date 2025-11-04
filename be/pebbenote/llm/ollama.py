@@ -18,6 +18,7 @@ class OllamaAdapter(AIAdapter):
         messages = [
             *self.map_messages(chat.messages),
         ]
+        logger.info("Starting chat")
         response: ChatResponse = await self._ollama.chat(
             model=self.model, messages=messages
         )

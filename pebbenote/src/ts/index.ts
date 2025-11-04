@@ -5,12 +5,14 @@ function getUrl<T>(method: "GET" | "POST", url: string, body: Object | null = nu
   const target = rootUrl + url
   return new Promise<T>((resolve, reject) => {
     request.onreadystatechange = (e) => {
-      if (request.readyState === 4) {
+      if (request.readyState === 4 && request.status >= 200 && request.status < 300) {
         console.info("Request", method, target, request.status)
         resolve(JSON.parse(request.response))
       }
+      console.warn(JSON.stringify(e))
     }
     request.open(method, target)
+    request.setRequestHeader("x-temp-key", "7e0367b4-5eb2-4b31-94db-20f2e838be22")
     if (body === null) {
       request.send()
     } else {

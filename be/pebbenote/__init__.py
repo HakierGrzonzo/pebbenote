@@ -1,16 +1,18 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.routing import APIRoute
+
+from .auth import validate_api_key
 from .notes.router import note_router
 from .actions.router import action_router
 
 logging.basicConfig(level=logging.INFO)
 
 
-app = FastAPI(title="PebbeNote")
+app = FastAPI(title="PebbeNote", dependencies=[Depends(validate_api_key)])
 
 app.add_middleware(
     CORSMiddleware,
