@@ -1,6 +1,6 @@
 {
   "name": "pebbenote",
-  "author": "MakeAwesomeHappen",
+  "author": "HakierGrzonzo",
   "version": "1.0.0",
   "keywords": [
     "pebble-app"
@@ -24,7 +24,9 @@
       "watchface": false
     },
     "messageKeys": [
-      "Dictation"
+      "Dictation",
+      "Vibe",
+      "Result"
     ],
     "resources": {
       "media": []

@@ -1,4 +1,5 @@
-const rootUrl = "http://ryzenrig.koperwas.local:8000"
+const rootUrl = "http://pebbenote.xeonserv.koperwas.local"
+
 
 function getUrl<T>(method: "GET" | "POST", url: string, body: Object | null = null) {
   const request = new XMLHttpRequest()
@@ -35,26 +36,26 @@ async function getSomeNote() {
   return firstNote
 }
 
-const messageKey = 0x0
-
 Pebble.addEventListener("ready", async (e) => {
+  console.log("App Started")
   const note = await getSomeNote()
-  console.log(note.content)
 
+  PebbleTS.sendAppMessage({"Result": note.content.slice(0, 500)})
 
   Pebble.addEventListener('appmessage', async (e) => {
     const payload = e.payload;
     console.log("Got message", JSON.stringify(payload))
-    const dictation: string | undefined = payload[messageKey]
+    const dictation: string | undefined = payload["Dictation"]
     if (!dictation) {
       console.error("dictation key is wrong?")
       return
     }
-    const response = await getUrl("POST", "/action/", {
+    PebbleTS.sendAppMessage({"Result": "Sending to Ollama"})
+    const response: Note = await getUrl("POST", "/action/", {
       ["note_id"]: note.note_id,
       action: dictation
     })
-    console.log(JSON.stringify(response))
+    PebbleTS.sendAppMessage({"Result": response.content.slice(0, 500), "Vibe": 1})
   })
 })
 
