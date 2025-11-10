@@ -1,8 +1,18 @@
-import { getSomeNote, postAction } from "./api";
+import { ActionEditModel, AppClient } from "./api";
+
+const apiClient = new AppClient({
+  BASE: "http://ryzenrig.koperwas.local:8000",
+});
 
 Pebble.addEventListener("ready", async () => {
   console.log("App Started");
-  const note = await getSomeNote();
+  const notes = await apiClient.notes.listNotes(Pebble.getAccountToken());
+
+  if (notes.length === 0) {
+    PebbleTS.sendAppMessage({ Result: "No notes available" });
+  }
+
+  const note = notes[0];
 
   PebbleTS.sendAppMessage({ Result: note.content.slice(0, 500) });
 
@@ -15,7 +25,14 @@ Pebble.addEventListener("ready", async () => {
       return;
     }
     PebbleTS.sendAppMessage({ Result: "Sending to Ollama" });
-    const response = await postAction(note.note_id, dictation);
+    const actionPayload: ActionEditModel = {
+      note_id: note.note_id,
+      action: dictation,
+    };
+    const response = await apiClient.actions.applyAction(
+      Pebble.getAccountToken(),
+      actionPayload,
+    );
     PebbleTS.sendAppMessage({
       Result: response.content.slice(0, 500),
       Vibe: 1,

@@ -32,11 +32,13 @@
     }
   },
   "devDependencies": {
+    "openapi-typescript-codegen": "^0.29.0",
     "pkts": "^0.2.1",
     "prettier": "^3.6.2"
   },
   "scripts": {
     "build": "pkts build",
-    "format": "prettier --write ./src/ts"
+    "format": "prettier --write ./src/ts",
+    "openapi": "openapi --input http://localhost:8000/openapi.json --output src/ts/api --client xhr --name AppClient --request ./request-template.ts && npm run format"
   }
 }
