@@ -6,7 +6,6 @@
     "pebble-app"
   ],
   "private": true,
-  "dependencies": {},
   "pebble": {
     "displayName": "pebbenote",
     "uuid": "6543b444-696e-4860-abd2-2e125362a258",
@@ -33,9 +32,11 @@
     }
   },
   "devDependencies": {
-    "pkts": "^0.2.1"
+    "pkts": "^0.2.1",
+    "prettier": "^3.6.2"
   },
   "scripts": {
-    "build": "pkts build"
+    "build": "pkts build",
+    "format": "prettier --write ./src/ts"
   }
 }
