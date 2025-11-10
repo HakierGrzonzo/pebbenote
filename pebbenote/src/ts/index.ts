@@ -1,4 +1,4 @@
-const rootUrl = "http://pebbenote.xeonserv.koperwas.local"
+const rootUrl = "http://ryzenrig.koperwas.local:8000"
 
 
 function getUrl<T>(method: "GET" | "POST", url: string, body: Object | null = null) {
@@ -7,13 +7,13 @@ function getUrl<T>(method: "GET" | "POST", url: string, body: Object | null = nu
   return new Promise<T>((resolve, reject) => {
     request.onreadystatechange = (e) => {
       if (request.readyState === 4 && request.status >= 200 && request.status < 300) {
-        console.info("Request", method, target, request.status)
+        console.info("request", method, target, request.status, request.response)
         resolve(JSON.parse(request.response))
       }
       console.warn(JSON.stringify(e))
     }
     request.open(method, target)
-    request.setRequestHeader("x-temp-key", "7e0367b4-5eb2-4b31-94db-20f2e838be22")
+    request.setRequestHeader("x-pebble-user-token", Pebble.getAccountToken())
     if (body === null) {
       request.send()
     } else {
@@ -35,6 +35,7 @@ async function getSomeNote() {
   const firstNote = data[0]
   return firstNote
 }
+
 
 Pebble.addEventListener("ready", async (e) => {
   console.log("App Started")

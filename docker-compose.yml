@@ -36,7 +36,6 @@ services:
       POSTGRES_DB: postgres
       POSTGRES_HOST: db 
       OLLAMA_HOST: "ryzenrig.koperwas.local"
-      TEMP_API_KEY: "7e0367b4-5eb2-4b31-94db-20f2e838be22"
     depends_on:
       db:
         condition: service_healthy

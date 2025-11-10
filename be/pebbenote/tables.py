@@ -12,6 +12,8 @@ class Note(Base):
 
     actions: Mapped[list["NoteAction"]] = relationship(back_populates="note")
 
+    owner = mapped_column(Text, nullable=False)
+
 
 class NoteAction(Base):
     __tablename__ = "note_action"

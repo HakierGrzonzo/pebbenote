@@ -18,7 +18,5 @@ class AppSettings(BaseSettings):
 
     ENVIRONMENT: EnvironmentKinds = "local"
 
-    TEMP_API_KEY: str | None = None
-
 
 settings = AppSettings()
