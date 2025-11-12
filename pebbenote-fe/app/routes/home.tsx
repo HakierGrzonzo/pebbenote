@@ -1,3 +1,4 @@
+import { useAppToken } from "~/hooks";
 import type { Route } from "./+types/home";
 
 export function meta({}: Route.MetaArgs) {
@@ -8,5 +9,6 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function Home() {
-  return <p>Hewwo</p>;
+  const token = useAppToken();
+  return <p>{token}</p>;
 }
