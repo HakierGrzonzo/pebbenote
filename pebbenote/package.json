@@ -29,7 +29,10 @@
     ],
     "resources": {
       "media": []
-    }
+    },
+    "capabilities": [
+      "configurable"
+    ]
   },
   "devDependencies": {
     "openapi-typescript-codegen": "^0.29.0",
