@@ -25,7 +25,8 @@
     "messageKeys": [
       "Dictation",
       "Vibe",
-      "Result"
+      "Result[20]",
+      "NumberOfLines"
     ],
     "resources": {
       "media": []

@@ -1,11 +1,12 @@
 #include <pebble.h>
+#include <string.h>
 
 static Window *s_main_window;
 static TextLayer *s_output_layer;
 static ScrollLayer *s_scroll_layer;
-static Layer *s_indicator_up_layer, *s_indicator_down_layer;
+//static Layer *s_indicator_up_layer, *s_indicator_down_layer;
 
-static ContentIndicator *s_indicator;
+//static ContentIndicator *s_indicator;
 
 static DictationSession *s_dictation_session;
 static char s_last_text[512];
@@ -14,11 +15,25 @@ static char s_last_text[512];
 const uint32_t inbox_size = 512;
 const uint32_t outbox_size = 512;
 
+#define min(a, b) a > b ? b : a
+
 GRect s_bounds;
+
+struct MessageWithPrefix {
+  int8_t prefix;
+  char* message;
+  TextLayer* layer;
+};
+
+#define MAX_MESSAGES 20
+
+static struct MessageWithPrefix messages[MAX_MESSAGES];
 
 
 static void display_text(char* text) {
-    layer_set_frame(text_layer_get_layer(s_output_layer), 
+    Layer* layer = text_layer_get_layer(s_output_layer);
+    layer_set_hidden(layer, false);
+    layer_set_frame(layer, 
                     GRect(s_bounds.origin.x, s_bounds.size.h / 2 - 24, s_bounds.size.w, s_bounds.size.h / 3));
     strncpy(s_last_text, text, sizeof(s_last_text) - 1);
     text_layer_set_text_alignment(s_output_layer, GTextAlignmentCenter);
@@ -27,27 +42,39 @@ static void display_text(char* text) {
     text_layer_set_text(s_output_layer, s_last_text);
 
     GSize text_size = text_layer_get_content_size(s_output_layer);
-    layer_set_frame(text_layer_get_layer(s_output_layer), 
+    layer_set_frame(layer, 
                     GRect(s_bounds.origin.x, s_bounds.size.h / 2 - 24, s_bounds.size.w, text_size.h));
     scroll_layer_set_content_size(s_scroll_layer, text_size);
 }
 
-static void display_longer_text(char* text) {
-    layer_set_frame(text_layer_get_layer(s_output_layer), 
-                    GRect(s_bounds.origin.x, s_bounds.origin.y, s_bounds.size.w, s_bounds.size.h * 10));
-    strncpy(s_last_text, text, sizeof(s_last_text) - 1);
-    GFont small_font = fonts_get_system_font(FONT_KEY_GOTHIC_24);
-    text_layer_set_font(s_output_layer, small_font);
-    text_layer_set_text_alignment(s_output_layer, GTextAlignmentLeft);
-    text_layer_set_text(s_output_layer, s_last_text);
+static void display_longer_text(uint8_t number_of_messages) {
+  layer_set_hidden(text_layer_get_layer(s_output_layer), true);
+  for (int i = 0; i < MAX_MESSAGES; i++) {
+    layer_set_hidden(text_layer_get_layer(messages[i].layer), true);
+  }
 
-    
-    GSize text_size = text_layer_get_content_size(s_output_layer);
-    layer_set_frame(text_layer_get_layer(s_output_layer), 
-                    GRect(s_bounds.origin.x, s_bounds.origin.y, s_bounds.size.w, text_size.h));
-    APP_LOG(APP_LOG_LEVEL_INFO, "Bounds height is %d", s_bounds.size.h);
-    APP_LOG(APP_LOG_LEVEL_INFO, "TextHeight is %d", text_size.h);
-    scroll_layer_set_content_size(s_scroll_layer, text_size);
+
+  int yOffset = 0;
+  for (int i = 0; i < number_of_messages; i++) {
+    struct MessageWithPrefix message = messages[i];
+    layer_set_hidden(text_layer_get_layer(message.layer), false);
+    int prefixOffset = min(message.prefix * 2, 40);
+    layer_set_frame(
+        text_layer_get_layer(message.layer), 
+        GRect(prefixOffset, yOffset, s_bounds.size.w - prefixOffset, s_bounds.size.h)
+    );
+    text_layer_set_text(message.layer, message.message);
+    GSize text_size = text_layer_get_content_size(message.layer);
+    layer_set_frame(
+        text_layer_get_layer(message.layer), 
+        GRect(prefixOffset, yOffset, s_bounds.size.w - prefixOffset, text_size.h + 2)
+    );
+    yOffset += text_size.h + 2;
+  }
+  scroll_layer_set_content_size(
+      s_scroll_layer, 
+      GSize(s_bounds.size.w, yOffset)
+  );
 }
 
 static void send_dictation(char* transcription) {
@@ -71,19 +98,48 @@ static void send_dictation(char* transcription) {
 } 
 
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
-  Tuple *note_tuple = dict_find(iter, MESSAGE_KEY_Result);
-  if(!note_tuple) {
-    // PebbleKit JS is ready! Safe to send messages
+  Tuple *number_on_lines = dict_find(iter, MESSAGE_KEY_NumberOfLines);
+
+  if(!number_on_lines) {
     display_text("Failed to load notes!");
     return;
   }
 
-  if (note_tuple->type != TUPLE_CSTRING) {
-    display_text("note is not cstring");
+  if (number_on_lines->type != TUPLE_INT && number_on_lines->length != 4) {
+    display_text("tuple is not int32");
     return;
   }
 
-  display_longer_text((char *) note_tuple->value);
+  APP_LOG(APP_LOG_LEVEL_DEBUG, "Got %d messages", (int)number_on_lines->value->int32);
+
+  int32_t number_or_messages_to_receive = min(number_on_lines->value->int32, 20);
+
+  for (int i = 0; i < number_or_messages_to_receive; i++) {
+    Tuple *note_tuple = dict_find(iter, MESSAGE_KEY_Result + i);
+
+    if(!number_on_lines || note_tuple->type != TUPLE_CSTRING) {
+      display_text("Failed to load notes!");
+      return;
+    }
+    
+    // Format is first byte is indent, the rest is the actual cstring
+    int8_t prefix = note_tuple->value->int8;
+
+    if (messages[i].message != NULL) {
+      free(messages[i].message);
+    }
+
+    char* newString = malloc(sizeof(char) * note_tuple->length);
+
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Got %s in %d byte long message", note_tuple->value->cstring + 1, note_tuple->length);
+    strcpy(newString, note_tuple->value->cstring + 1);
+
+    messages[i].prefix = prefix;
+    messages[i].message = newString;
+
+  }
+  display_longer_text(number_or_messages_to_receive);
+
 
   Tuple *vibe_tuple = dict_find(iter, MESSAGE_KEY_Vibe);
   if (vibe_tuple) {
@@ -138,7 +194,15 @@ static void window_load(Window *window) {
 
   scroll_layer_set_shadow_hidden(s_scroll_layer, true);
 
+  GFont smallFont = fonts_get_system_font(FONT_KEY_GOTHIC_18);
   s_output_layer = text_layer_create(content_size);
+  for (int i = 0; i < MAX_MESSAGES; i++) {
+    messages[i].layer = text_layer_create(content_size);
+    text_layer_set_font(messages[i].layer, smallFont);
+    text_layer_set_text_alignment(messages[i].layer, GTextAlignmentLeft);
+    scroll_layer_add_child(s_scroll_layer, text_layer_get_layer(messages[i].layer));
+  }
+
   scroll_layer_add_child(s_scroll_layer, text_layer_get_layer(s_output_layer));
   display_text("Loading...");
 }
