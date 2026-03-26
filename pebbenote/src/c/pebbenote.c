@@ -12,6 +12,7 @@ static char s_last_text[512];
 const uint32_t inbox_size = 2048;
 const uint32_t outbox_size = 512;
 
+
 #define min(a, b) a > b ? b : a
 
 GRect s_bounds;
@@ -20,9 +21,13 @@ struct MessageWithPrefix {
   int8_t prefix;
   char* message;
   TextLayer* layer;
+  int yOffset;
 };
 
 #define MAX_MESSAGES 20
+
+uint8_t numberOfMessages = 0;
+uint8_t selectedNote = 0;
 
 static struct MessageWithPrefix messages[MAX_MESSAGES];
 
@@ -53,13 +58,15 @@ static void display_text(char* text) {
     scroll_layer_set_content_size(s_scroll_layer, text_size);
 }
 
-static void display_longer_text(uint8_t number_of_messages) {
+static void display_notes() {
   layer_set_hidden(text_layer_get_layer(s_output_layer), true);
   set_longer_text_hidden(true);
 
+  GFont big_font = fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+  GFont small_font = fonts_get_system_font(FONT_KEY_GOTHIC_14);
 
   int yOffset = 0;
-  for (int i = 0; i < number_of_messages; i++) {
+  for (int i = 0; i < numberOfMessages; i++) {
     struct MessageWithPrefix message = messages[i];
     layer_set_hidden(text_layer_get_layer(message.layer), false);
     int prefixOffset = min(message.prefix * 2, 40);
@@ -68,12 +75,34 @@ static void display_longer_text(uint8_t number_of_messages) {
         GRect(prefixOffset, yOffset, s_bounds.size.w - prefixOffset, s_bounds.size.h)
     );
     text_layer_set_text(message.layer, message.message);
+    
+    GFont* fontToSet;
+    GColor color;
+    GColor backgroundColor;
+    uint8_t margin = 0;
+    if (i == selectedNote) {
+      fontToSet = &big_font;
+      color = GColorWhite;
+      backgroundColor = GColorBlack;
+      margin = 3;
+    } else {
+      fontToSet = &small_font;
+      color = GColorBlack;
+      backgroundColor = GColorWhite;
+    }
+
+    text_layer_set_font(message.layer, *fontToSet);
+    text_layer_set_text_color(message.layer, color);
+    text_layer_set_background_color(message.layer, backgroundColor);
+
     GSize text_size = text_layer_get_content_size(message.layer);
     layer_set_frame(
         text_layer_get_layer(message.layer), 
-        GRect(prefixOffset, yOffset, s_bounds.size.w - prefixOffset, text_size.h + 2)
+        GRect(prefixOffset, yOffset, s_bounds.size.w - prefixOffset, text_size.h + 2 + margin)
     );
-    yOffset += text_size.h + 2;
+    messages[i].yOffset = yOffset;
+    
+    yOffset += text_size.h + 2 + margin;
   }
   scroll_layer_set_content_size(
       s_scroll_layer, 
@@ -122,9 +151,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
   APP_LOG(APP_LOG_LEVEL_DEBUG, "Got %d messages", (int)number_on_lines->value->int32);
 
-  int32_t number_or_messages_to_receive = min(number_on_lines->value->int32, MAX_MESSAGES);
+  numberOfMessages = min(number_on_lines->value->int32, MAX_MESSAGES);
+  selectedNote = min(numberOfMessages, selectedNote);
 
-  for (int i = 0; i < number_or_messages_to_receive; i++) {
+  for (int i = 0; i < numberOfMessages; i++) {
     Tuple *note_tuple = dict_find(iter, MESSAGE_KEY_Result + i);
 
     if(!number_on_lines || note_tuple->type != TUPLE_CSTRING) {
@@ -150,7 +180,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     messages[i].message = newString;
 
   }
-  display_longer_text(number_or_messages_to_receive);
+  display_notes();
 
 
   Tuple *vibe_tuple = dict_find(iter, MESSAGE_KEY_Vibe);
@@ -182,17 +212,26 @@ static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
   dictation_session_start(s_dictation_session);
 }
 
+static void scroll_to_selected_note() {
+  display_notes();
+
+  GPoint offset = GPoint(0, -messages[selectedNote].yOffset + 10);
+  scroll_layer_set_content_offset(s_scroll_layer, offset, true);
+}
+
 static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
-  scroll_layer_scroll_down_click_handler(recognizer, s_scroll_layer);
+  selectedNote = (selectedNote + 1) % numberOfMessages;
+  scroll_to_selected_note();
 }
 static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
-  scroll_layer_scroll_up_click_handler(recognizer, s_scroll_layer);
+  selectedNote = (selectedNote - 1) % numberOfMessages;
+  scroll_to_selected_note();
 }
 
 static void click_config_provider(void *context) {
   window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
-  window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 100, down_click_handler);
-  window_single_repeating_click_subscribe(BUTTON_ID_UP, 100, up_click_handler);
+  window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 300, down_click_handler);
+  window_single_repeating_click_subscribe(BUTTON_ID_UP, 300, up_click_handler);
 }
 
 static void window_load(Window *window) {
