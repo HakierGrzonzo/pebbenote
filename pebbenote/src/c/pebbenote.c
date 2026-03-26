@@ -4,15 +4,12 @@
 static Window *s_main_window;
 static TextLayer *s_output_layer;
 static ScrollLayer *s_scroll_layer;
-//static Layer *s_indicator_up_layer, *s_indicator_down_layer;
-
-//static ContentIndicator *s_indicator;
 
 static DictationSession *s_dictation_session;
 static char s_last_text[512];
 
 // Largest expected inbox and outbox message sizes
-const uint32_t inbox_size = 512;
+const uint32_t inbox_size = 2048;
 const uint32_t outbox_size = 512;
 
 #define min(a, b) a > b ? b : a
@@ -29,15 +26,24 @@ struct MessageWithPrefix {
 
 static struct MessageWithPrefix messages[MAX_MESSAGES];
 
+static void set_longer_text_hidden(bool hide) {
+  for (int i = 0; i < MAX_MESSAGES; i++) {
+    layer_set_hidden(text_layer_get_layer(messages[i].layer), hide);
+  }
+}
 
 static void display_text(char* text) {
     Layer* layer = text_layer_get_layer(s_output_layer);
     layer_set_hidden(layer, false);
+    set_longer_text_hidden(true);
+
     layer_set_frame(layer, 
                     GRect(s_bounds.origin.x, s_bounds.size.h / 2 - 24, s_bounds.size.w, s_bounds.size.h / 3));
     strncpy(s_last_text, text, sizeof(s_last_text) - 1);
+
     text_layer_set_text_alignment(s_output_layer, GTextAlignmentCenter);
     GFont big_font = fonts_get_system_font(FONT_KEY_GOTHIC_28);
+
     text_layer_set_font(s_output_layer, big_font);
     text_layer_set_text(s_output_layer, s_last_text);
 
@@ -49,9 +55,7 @@ static void display_text(char* text) {
 
 static void display_longer_text(uint8_t number_of_messages) {
   layer_set_hidden(text_layer_get_layer(s_output_layer), true);
-  for (int i = 0; i < MAX_MESSAGES; i++) {
-    layer_set_hidden(text_layer_get_layer(messages[i].layer), true);
-  }
+  set_longer_text_hidden(true);
 
 
   int yOffset = 0;
@@ -100,8 +104,14 @@ static void send_dictation(char* transcription) {
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *number_on_lines = dict_find(iter, MESSAGE_KEY_NumberOfLines);
 
+
   if(!number_on_lines) {
-    display_text("Failed to load notes!");
+    Tuple *note_tuple = dict_find(iter, MESSAGE_KEY_Result);
+    if (note_tuple && note_tuple->type == TUPLE_CSTRING) {
+      display_text(note_tuple->value->cstring);
+    } else {
+      display_text("Failed to load notes?");
+    }
     return;
   }
 
@@ -112,7 +122,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
   APP_LOG(APP_LOG_LEVEL_DEBUG, "Got %d messages", (int)number_on_lines->value->int32);
 
-  int32_t number_or_messages_to_receive = min(number_on_lines->value->int32, 20);
+  int32_t number_or_messages_to_receive = min(number_on_lines->value->int32, MAX_MESSAGES);
 
   for (int i = 0; i < number_or_messages_to_receive; i++) {
     Tuple *note_tuple = dict_find(iter, MESSAGE_KEY_Result + i);
@@ -129,10 +139,12 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       free(messages[i].message);
     }
 
-    char* newString = malloc(sizeof(char) * note_tuple->length);
+    int newStringLength = sizeof(char) * note_tuple->length;
+
+    char* newString = malloc(newStringLength);
 
     APP_LOG(APP_LOG_LEVEL_DEBUG, "Got %s in %d byte long message", note_tuple->value->cstring + 1, note_tuple->length);
-    strcpy(newString, note_tuple->value->cstring + 1);
+    strncpy(newString, note_tuple->value->cstring + 1, newStringLength);
 
     messages[i].prefix = prefix;
     messages[i].message = newString;

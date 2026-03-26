@@ -25,7 +25,9 @@ Pebble.addEventListener("ready", async () => {
   const notes = await apiClient.notes.listNotes(Pebble.getAccountToken());
 
   if (notes.length === 0) {
-    PebbleTS.sendAppMessage({ Result: "No notes available" });
+    console.log(`No notes for ${Pebble.getAccountToken()}`)
+    PebbleTS.sendAppMessage({ [keys.Result]: "No notes available" });
+    return;
   }
 
   const note = notes[0];
