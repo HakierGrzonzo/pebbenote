@@ -1,9 +1,11 @@
 import { ActionEditModel, AppClient } from "./api";
 const keys = require("message_keys") as Record<string, number>;
 
-const apiClient = new AppClient({
-  BASE: "http://ryzenrig.koperwas.local:8000",
-});
+import { configPageUrl, getBaseUrl, isValidUrl, setBaseUrl } from "./config";
+
+function makeClient() {
+  return new AppClient({ BASE: getBaseUrl() });
+}
 
 function encodeNote(note: string) {
   const points = note.split("\n");
@@ -20,15 +22,48 @@ function encodeNote(note: string) {
   return { ...message, NumberOfLines: points.length };
 }
 
+async function refreshNote() {
+  try {
+    const note = await makeClient().notes.getNoteById(
+      "default",
+      Pebble.getAccountToken(),
+    );
+    PebbleTS.sendAppMessage({ ...encodeNote(note.content) });
+  } catch (e) {
+    console.error("Failed to fetch note", String(e));
+    PebbleTS.sendAppMessage({ Result: "Backend unreachable" });
+  }
+}
+
+Pebble.addEventListener("showConfiguration", () => {
+  Pebble.openURL(configPageUrl());
+});
+
+// pkts typings omit the config-page close event
+type WebViewClosedEvent = { type: "webviewclosed"; response?: string };
+
+(Pebble.addEventListener as (
+  event: "webviewclosed",
+  callback: (e: WebViewClosedEvent) => void,
+) => void)("webviewclosed", async (e) => {
+  if (!e.response) return;
+  try {
+    const { backendUrl } = JSON.parse(decodeURIComponent(e.response));
+    if (backendUrl && !isValidUrl(backendUrl)) {
+      console.error("Invalid backend url", backendUrl);
+      return;
+    }
+    setBaseUrl(backendUrl || "");
+  } catch (err) {
+    console.error("Bad config response", String(err));
+    return;
+  }
+  await refreshNote();
+});
+
 Pebble.addEventListener("ready", async () => {
   console.log("App Started 2");
-  const note = await apiClient.notes.getNoteById(
-    "default",
-    Pebble.getAccountToken(),
-  );
-
-  const message = encodeNote(note.content);
-  PebbleTS.sendAppMessage({ ...message });
+  await refreshNote();
 
   Pebble.addEventListener("appmessage", async (e) => {
     const payload = e.payload;
@@ -43,10 +78,17 @@ Pebble.addEventListener("ready", async () => {
       note_id: "default",
       action: dictation,
     };
-    const response = await apiClient.actions.applyAction(
-      Pebble.getAccountToken(),
-      actionPayload,
-    );
+    let response;
+    try {
+      response = await makeClient().actions.applyAction(
+        Pebble.getAccountToken(),
+        actionPayload,
+      );
+    } catch (err) {
+      console.error("Failed to apply action", String(err));
+      PebbleTS.sendAppMessage({ Result: "Backend unreachable" });
+      return;
+    }
     const message = encodeNote(response.content);
 
     console.log(message);
