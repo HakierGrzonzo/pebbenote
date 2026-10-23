@@ -23,9 +23,12 @@ class NoteActionService:
         self.ai = ai
 
     async def create_and_apply_action(self, action_model: ActionEditModel):
-        action = await self.action_repository.add_action(action_model)
-
+        # Resolves "default" and checks ownership before touching actions
         note = await self.note_repository.get_note_by_id(action_model.note_id)
+
+        action = await self.action_repository.add_action(
+            note.note_id, action_model.action
+        )
 
         chat = Chat(
             messages=[

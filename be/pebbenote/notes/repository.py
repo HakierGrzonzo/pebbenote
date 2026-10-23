@@ -1,10 +1,11 @@
 from typing import cast
 from sqlalchemy import Select
-from uuid import UUID
+from sqlalchemy.dialects.postgresql import insert
 from pebbenote.db import DbSession
 from pebbenote.pebble_tokens import PebbleUserToken
 from .exceptions import NoteDoesNotExist
 from .schemas import NoteEditModel, NoteModel
+from .types import NoteId
 from ..tables import Note
 
 
@@ -26,7 +27,37 @@ class NoteRepository:
 
         return [self.map_note(note) for note in notes]
 
-    async def _raw_get_note_by_id(self, note_id: UUID) -> Note:
+    async def _raw_get_default_note(self) -> Note:
+        query = (
+            Select(Note)
+            .where(Note.owner == self.user)
+            .where(Note.is_default)
+        )
+
+        note = cast(
+            Note | None, (await self.session.execute(query)).scalars().first()
+        )
+        if note is not None:
+            return note
+
+        # The user's first visit: create the default note. The partial unique
+        # index makes this safe against concurrent requests.
+        await self.session.execute(
+            insert(Note)
+            .values(note_text="", owner=self.user, is_default=True)
+            .on_conflict_do_nothing(
+                index_elements=[Note.owner], index_where=Note.is_default
+            )
+        )
+
+        return cast(
+            Note, (await self.session.execute(query)).scalars().one()
+        )
+
+    async def _raw_get_note_by_id(self, note_id: NoteId) -> Note:
+        if note_id == "default":
+            return await self._raw_get_default_note()
+
         query = (
             Select(Note)
             .where(Note.note_id == note_id)
@@ -41,12 +72,12 @@ class NoteRepository:
 
         return note
 
-    async def get_note_by_id(self, note_id: UUID):
+    async def get_note_by_id(self, note_id: NoteId):
         note = await self._raw_get_note_by_id(note_id)
 
         return self.map_note(note)
 
-    async def update_note(self, note_id: UUID, note_model: NoteEditModel):
+    async def update_note(self, note_id: NoteId, note_model: NoteEditModel):
         note = await self._raw_get_note_by_id(note_id)
         note.note_text = note_model.content
         await self.session.flush([note])

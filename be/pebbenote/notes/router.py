@@ -1,9 +1,9 @@
 from typing import Annotated
-from uuid import UUID
 from fastapi import APIRouter, Depends
 
 from pebbenote.notes.repository import NoteRepository
 from pebbenote.notes.schemas import NoteEditModel, NoteModel, NoteViewModel
+from pebbenote.notes.types import NoteId
 from pebbenote.notes.view import NoteView
 
 
@@ -19,7 +19,7 @@ async def list_notes(
 
 @note_router.get("/{note_id}")
 async def get_note_by_id(
-    view: Annotated[NoteView, Depends()], note_id: UUID
+    view: Annotated[NoteView, Depends()], note_id: NoteId
 ) -> NoteViewModel:
     return await view.get_note_by_id(note_id)
 
@@ -27,7 +27,7 @@ async def get_note_by_id(
 @note_router.patch("/{note_id}")
 async def edit_note_by_id(
     repository: Annotated[NoteRepository, Depends()],
-    note_id: UUID,
+    note_id: NoteId,
     note: NoteEditModel,
 ) -> NoteModel:
     return await repository.update_note(note_id, note)

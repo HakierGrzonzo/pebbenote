@@ -2,7 +2,7 @@ from typing import cast
 from uuid import UUID
 
 from sqlalchemy import Select, asc
-from pebbenote.actions.schemas import ActionEditModel, ActionModel
+from pebbenote.actions.schemas import ActionModel
 from pebbenote.db import DbSession
 from pebbenote.tables import NoteAction
 
@@ -33,10 +33,8 @@ class NoteActionRepository:
 
         return [self.map_action(action) for action in actions]
 
-    async def add_action(self, action_model: ActionEditModel):
-        action = NoteAction(
-            note_id=action_model.note_id, action_text=action_model.action
-        )
+    async def add_action(self, note_id: UUID, action_text: str):
+        action = NoteAction(note_id=note_id, action_text=action_text)
         self.session.add(action)
         await self.session.flush([action])
 

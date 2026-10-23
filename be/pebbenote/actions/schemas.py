@@ -2,6 +2,8 @@ from datetime import datetime
 from uuid import UUID
 from pydantic import BaseModel
 
+from pebbenote.notes.types import NoteId
+
 
 class ActionModel(BaseModel):
     note_action_id: UUID
@@ -13,5 +15,5 @@ class ActionModel(BaseModel):
 
 
 class ActionEditModel(BaseModel):
-    note_id: UUID
+    note_id: NoteId
     action: str

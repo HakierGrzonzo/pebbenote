@@ -22,15 +22,10 @@ function encodeNote(note: string) {
 
 Pebble.addEventListener("ready", async () => {
   console.log("App Started 2");
-  const notes = await apiClient.notes.listNotes(Pebble.getAccountToken());
-
-  if (notes.length === 0) {
-    console.log(`No notes for ${Pebble.getAccountToken()}`)
-    PebbleTS.sendAppMessage({ [keys.Result]: "No notes available" });
-    return;
-  }
-
-  const note = notes[0];
+  const note = await apiClient.notes.getNoteById(
+    "default",
+    Pebble.getAccountToken(),
+  );
 
   const message = encodeNote(note.content);
   PebbleTS.sendAppMessage({ ...message });
@@ -45,7 +40,7 @@ Pebble.addEventListener("ready", async () => {
     }
     PebbleTS.sendAppMessage({ Result: "Sending to Ollama" });
     const actionPayload: ActionEditModel = {
-      note_id: note.note_id,
+      note_id: "default",
       action: dictation,
     };
     const response = await apiClient.actions.applyAction(

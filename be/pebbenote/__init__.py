@@ -1,10 +1,11 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.routing import APIRoute
 
+from .notes.exceptions import NoteDoesNotExist
 from .notes.router import note_router
 from .actions.router import action_router
 
@@ -25,6 +26,11 @@ app.add_middleware(
 @app.get("/", include_in_schema=False)
 def redirect_to_docs():
     return RedirectResponse("/docs")
+
+
+@app.exception_handler(NoteDoesNotExist)
+async def note_does_not_exist_handler(request: Request, exc: NoteDoesNotExist):
+    return JSONResponse(status_code=404, content={"detail": "Note not found"})
 
 
 app.include_router(note_router)

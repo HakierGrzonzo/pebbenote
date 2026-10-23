@@ -1,4 +1,14 @@
-from sqlalchemy import TIMESTAMP, ForeignKey, Text, Uuid, func
+from sqlalchemy import (
+    TIMESTAMP,
+    Boolean,
+    ForeignKey,
+    Index,
+    Text,
+    Uuid,
+    false,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from .db import Base
 
@@ -13,6 +23,20 @@ class Note(Base):
     actions: Mapped[list["NoteAction"]] = relationship(back_populates="note")
 
     owner = mapped_column(Text, nullable=False)
+
+    is_default = mapped_column(
+        Boolean, nullable=False, server_default=false()
+    )
+
+    __table_args__ = (
+        # At most one default note per owner
+        Index(
+            "uq_note_one_default_per_owner",
+            "owner",
+            unique=True,
+            postgresql_where=text("is_default"),
+        ),
+    )
 
 
 class NoteAction(Base):
