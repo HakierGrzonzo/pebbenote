@@ -6,6 +6,7 @@
 #include "ui.h"
 
 static DictationSession *s_dictation_session;
+static bool s_sign_in_required;
 
 // Largest expected inbox and outbox message sizes
 static const uint32_t inbox_size = 2048;
@@ -50,9 +51,18 @@ void send_delete_line(uint8_t index) {
   display_text("Deleting...");
 }
 
+bool comm_sign_in_required(void) {
+  return s_sign_in_required;
+}
+
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *number_on_lines = dict_find(iter, MESSAGE_KEY_NumberOfLines);
 
+  s_sign_in_required = dict_find(iter, MESSAGE_KEY_SignInRequired) != NULL;
+  if (s_sign_in_required) {
+    display_sign_in();
+    return;
+  }
 
   if(!number_on_lines) {
     Tuple *note_tuple = dict_find(iter, MESSAGE_KEY_Result);

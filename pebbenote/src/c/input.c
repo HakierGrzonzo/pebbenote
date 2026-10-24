@@ -5,6 +5,10 @@
 #include "ui.h"
 
 static void select_click_handler(ClickRecognizerRef recognizer, void *context) {
+  // Dictation can't succeed until the user signs in on the phone
+  if (comm_sign_in_required()) {
+    return;
+  }
   // Start voice dictation UI
   start_dictation();
 }

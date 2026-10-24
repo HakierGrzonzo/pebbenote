@@ -23,14 +23,17 @@ function makeClient() {
 }
 
 // A 401 despite a fresh token means the session is gone server side
-function failureMessage(e: unknown) {
+function isAuthError(e: unknown) {
+  return (
+    e instanceof NotSignedInError || (e instanceof ApiError && e.status === 401)
+  );
+}
+
+// The watch shows sign in directions for SignInRequired, text otherwise
+function sendFailure(e: unknown) {
   if (e instanceof ApiError && e.status === 401) signOut();
-  if (
-    e instanceof NotSignedInError ||
-    (e instanceof ApiError && e.status === 401)
-  )
-    return "Sign in via settings";
-  return "Backend unreachable";
+  if (isAuthError(e)) PebbleTS.sendAppMessage({ SignInRequired: 1 });
+  else PebbleTS.sendAppMessage({ Result: "Backend unreachable" });
 }
 
 function encodeNote(note: string) {
@@ -54,7 +57,7 @@ async function refreshNote() {
     PebbleTS.sendAppMessage({ ...encodeNote(note.content) });
   } catch (e) {
     console.error("Failed to fetch note", String(e));
-    PebbleTS.sendAppMessage({ Result: failureMessage(e) });
+    sendFailure(e);
   }
 }
 
@@ -72,7 +75,7 @@ async function deleteNoteLine(index: number) {
     PebbleTS.sendAppMessage({ ...encodeNote(updated.content) });
   } catch (e) {
     console.error("Failed to delete line", String(e));
-    PebbleTS.sendAppMessage({ Result: failureMessage(e) });
+    sendFailure(e);
   }
 }
 
@@ -84,8 +87,10 @@ Pebble.addEventListener("showConfiguration", async () => {
       notes = await makeClient().notes.listNotes();
     } catch (e) {
       console.error("Failed to list notes", String(e));
-      if (failureMessage(e) === "Sign in via settings")
+      if (isAuthError(e)) {
+        if (e instanceof ApiError) signOut();
         signInUrl = await beginSignIn();
+      }
     }
   } else {
     signInUrl = await beginSignIn();
@@ -176,7 +181,7 @@ Pebble.addEventListener("ready", async () => {
       response = await makeClient().actions.applyAction(actionPayload);
     } catch (err) {
       console.error("Failed to apply action", String(err));
-      PebbleTS.sendAppMessage({ Result: failureMessage(err) });
+      sendFailure(err);
       return;
     }
     const message = encodeNote(response.content);

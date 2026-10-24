@@ -26,7 +26,8 @@
       "DeleteLine",
       "Vibe",
       "Result[20]",
-      "NumberOfLines"
+      "NumberOfLines",
+      "SignInRequired"
     ],
     "resources": {
       "media": []

@@ -17,7 +17,7 @@ static void set_longer_text_hidden(bool hide) {
   }
 }
 
-void display_text(char* text) {
+static void show_text(char* text, const char* font_key) {
     Layer* layer = text_layer_get_layer(s_output_layer);
     layer_set_hidden(layer, false);
     set_longer_text_hidden(true);
@@ -27,15 +27,24 @@ void display_text(char* text) {
     strncpy(s_last_text, text, sizeof(s_last_text) - 1);
 
     text_layer_set_text_alignment(s_output_layer, GTextAlignmentCenter);
-    GFont big_font = fonts_get_system_font(FONT_KEY_GOTHIC_28);
-
-    text_layer_set_font(s_output_layer, big_font);
+    text_layer_set_font(s_output_layer, fonts_get_system_font(font_key));
     text_layer_set_text(s_output_layer, s_last_text);
 
     GSize text_size = text_layer_get_content_size(s_output_layer);
     layer_set_frame(layer,
                     GRect(s_bounds.origin.x, s_bounds.size.h / 2 - 24, s_bounds.size.w, text_size.h));
     scroll_layer_set_content_size(s_scroll_layer, text_size);
+}
+
+void display_text(char* text) {
+  show_text(text, FONT_KEY_GOTHIC_28);
+}
+
+void display_sign_in(void) {
+  show_text("Sign in required\n"
+            "Open the Pebble app on your phone, open pebbenote settings and "
+            "tap the sign in link",
+            FONT_KEY_GOTHIC_18_BOLD);
 }
 
 void display_notes(void) {
