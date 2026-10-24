@@ -108,4 +108,29 @@ export class NotesService {
       },
     });
   }
+  /**
+   * Set Default Note
+   * @param noteId
+   * @param xPebbleUserToken
+   * @returns NoteModel Successful Response
+   * @throws ApiError
+   */
+  public setDefaultNote(
+    noteId: string,
+    xPebbleUserToken: string,
+  ): CancelablePromise<NoteModel> {
+    return this.httpRequest.request({
+      method: "PUT",
+      url: "/note/{note_id}/default",
+      path: {
+        note_id: noteId,
+      },
+      headers: {
+        "X-pebble-user-token": xPebbleUserToken,
+      },
+      errors: {
+        422: `Validation Error`,
+      },
+    });
+  }
 }

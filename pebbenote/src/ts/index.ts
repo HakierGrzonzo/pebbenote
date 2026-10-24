@@ -1,7 +1,14 @@
 import { ActionEditModel, AppClient } from "./api";
 const keys = require("message_keys") as Record<string, number>;
 
-import { configPageUrl, getBaseUrl, isValidUrl, setBaseUrl } from "./config";
+import {
+  ConfigNote,
+  ConfigResult,
+  configPageUrl,
+  getBaseUrl,
+  isValidUrl,
+  setBaseUrl,
+} from "./config";
 
 function makeClient() {
   return new AppClient({ BASE: getBaseUrl() });
@@ -35,9 +42,32 @@ async function refreshNote() {
   }
 }
 
-Pebble.addEventListener("showConfiguration", () => {
-  Pebble.openURL(configPageUrl());
+Pebble.addEventListener("showConfiguration", async () => {
+  let notes: ConfigNote[] | null = null;
+  try {
+    notes = await makeClient().notes.listNotes(Pebble.getAccountToken());
+  } catch (e) {
+    console.error("Failed to list notes", String(e));
+  }
+  Pebble.openURL(configPageUrl(notes));
 });
+
+async function applyNoteChanges({ newNotes, defaultId }: ConfigResult) {
+  const notes = makeClient().notes;
+  const token = Pebble.getAccountToken();
+  try {
+    const createdIds: string[] = [];
+    for (const content of newNotes ?? []) {
+      createdIds.push((await notes.createNote(content, token)).note_id);
+    }
+    const target = defaultId?.startsWith("new:")
+      ? createdIds[Number(defaultId.slice(4))]
+      : defaultId;
+    if (target) await notes.setDefaultNote(target, token);
+  } catch (e) {
+    console.error("Failed to apply note changes", String(e));
+  }
+}
 
 // pkts typings omit the config-page close event
 type WebViewClosedEvent = { type: "webviewclosed"; response?: string };
@@ -48,12 +78,14 @@ type WebViewClosedEvent = { type: "webviewclosed"; response?: string };
 ) => void)("webviewclosed", async (e) => {
   if (!e.response) return;
   try {
-    const { backendUrl } = JSON.parse(decodeURIComponent(e.response));
+    const result: ConfigResult = JSON.parse(decodeURIComponent(e.response));
+    const { backendUrl } = result;
     if (backendUrl && !isValidUrl(backendUrl)) {
       console.error("Invalid backend url", backendUrl);
       return;
     }
     setBaseUrl(backendUrl || "");
+    await applyNoteChanges(result);
   } catch (err) {
     console.error("Bad config response", String(err));
     return;

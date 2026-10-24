@@ -96,3 +96,27 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         )
         with self.assertRaises(IntegrityError):
             await self.session.flush()
+
+    async def test_set_default_switches(self):
+        old = await self.repository.get_note_by_id("default")
+        target = uuid_gen["note", 0]
+
+        result = await self.repository.set_default_note(target)
+        notes = await self.repository.list_notes()
+
+        self.assertTrue(result.is_default)
+        self.assertEqual(
+            [n.note_id for n in notes if n.is_default], [target]
+        )
+        self.assertNotEqual(old.note_id, target)
+
+    async def test_set_default_idempotent(self):
+        target = uuid_gen["note", 0]
+        await self.repository.set_default_note(target)
+        result = await self.repository.set_default_note(target)
+
+        self.assertTrue(result.is_default)
+
+    async def test_set_default_non_ours(self):
+        with self.assertRaises(NoteDoesNotExist):
+            await self.repository.set_default_note(uuid_gen["note", 5])

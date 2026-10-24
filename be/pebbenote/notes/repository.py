@@ -1,5 +1,6 @@
 from typing import cast
-from sqlalchemy import Select
+from uuid import UUID
+from sqlalchemy import Select, update
 from sqlalchemy.dialects.postgresql import insert
 from pebbenote.db import DbSession
 from pebbenote.pebble_tokens import PebbleUserToken
@@ -16,7 +17,11 @@ class NoteRepository:
 
     @classmethod
     def map_note(cls, note: Note) -> NoteModel:
-        return NoteModel(note_id=note.note_id, content=note.note_text)
+        return NoteModel(
+            note_id=note.note_id,
+            content=note.note_text,
+            is_default=note.is_default,
+        )
 
     async def list_notes(self) -> list[NoteModel]:
         query: Select = Select(Note).where(Note.owner == self.user)
@@ -87,5 +92,22 @@ class NoteRepository:
         note = Note(note_text=note_model.content, owner=self.user)
         self.session.add(note)
         await self.session.flush([note])
+
+        return self.map_note(note)
+
+    async def set_default_note(self, note_id: UUID) -> NoteModel:
+        note = await self._raw_get_note_by_id(note_id)
+
+        if not note.is_default:
+            # Clear the old default first: the partial unique index allows
+            # only one default per owner at any point.
+            await self.session.execute(
+                update(Note)
+                .where(Note.owner == self.user)
+                .where(Note.is_default)
+                .values(is_default=False)
+            )
+            note.is_default = True
+            await self.session.flush([note])
 
         return self.map_note(note)

@@ -7,6 +7,7 @@ from pebbenote.actions.schemas import ActionModel
 class NoteModel(BaseModel):
     note_id: UUID
     content: str
+    is_default: bool
 
 
 class NoteEditModel(BaseModel):

@@ -5,4 +5,5 @@
 export type NoteModel = {
   note_id: string;
   content: string;
+  is_default: boolean;
 };

@@ -1,4 +1,5 @@
 from typing import Annotated
+from uuid import UUID
 from fastapi import APIRouter, Depends
 
 from pebbenote.notes.repository import NoteRepository
@@ -39,3 +40,11 @@ async def create_note(
     new_note: Annotated[NoteEditModel, Depends()],
 ) -> NoteModel:
     return await repository.create_note(new_note)
+
+
+@note_router.put("/{note_id}/default")
+async def set_default_note(
+    repository: Annotated[NoteRepository, Depends()],
+    note_id: UUID,
+) -> NoteModel:
+    return await repository.set_default_note(note_id)
