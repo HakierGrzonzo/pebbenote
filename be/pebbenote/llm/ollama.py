@@ -9,7 +9,7 @@ logger = getLogger(__name__)
 
 
 class OllamaAdapter(AIAdapter):
-    model = "qwen3:30b"
+    model = "gemma4:e2b"
 
     def __init__(self) -> None:
         self._ollama = AsyncClient()

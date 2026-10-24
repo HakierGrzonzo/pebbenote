@@ -28,19 +28,18 @@ services:
           initial_sync: true
         - action: rebuild
           path: ./be/pyproject.toml
-    ports:
-      - "8000:80"
+    network_mode: host
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
-      POSTGRES_HOST: db 
-      OLLAMA_HOST: "ryzenrig.koperwas.local"
+      POSTGRES_HOST: localhost
+      OLLAMA_HOST: "localhost"
     depends_on:
       db:
         condition: service_healthy
     restart: on-failure
-    entrypoint: poetry run uvicorn pebbenote:app --host 0.0.0.0 --port 80 --reload
+    entrypoint: poetry run uvicorn pebbenote:app --host 0.0.0.0 --port 8000 --reload
 
 
 volumes:
