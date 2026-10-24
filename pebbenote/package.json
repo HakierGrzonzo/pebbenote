@@ -7,8 +7,8 @@
   ],
   "private": true,
   "pebble": {
-    "displayName": "pebbenote",
-    "uuid": "6543b444-696e-4860-abd2-2e125362a258",
+    "displayName": "pebbenote (dev)",
+    "uuid": "f293249e-3739-4345-8e47-41d4c79e7038",
     "sdkVersion": "3",
     "enableMultiJS": true,
     "targetPlatforms": [

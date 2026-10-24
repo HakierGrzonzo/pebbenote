@@ -122,6 +122,7 @@ export async function pollDeviceFlow(flow: DeviceFlow): Promise<boolean> {
   const deadline = Date.now() + flow.expires_in * 1000;
   while (Date.now() < deadline) {
     await sleep(intervalMs);
+    console.log("Checking flow");
     const { status, body } = await postForm<TokenResponse | OAuthError>(
       `${OIDC}/token`,
       {
@@ -131,12 +132,17 @@ export async function pollDeviceFlow(flow: DeviceFlow): Promise<boolean> {
       },
     );
     if (status === 200) {
+      console.log("Flow worked, signed in");
       storeTokens(body as TokenResponse);
       return true;
     }
     const { error } = body as OAuthError;
     if (error === "slow_down") intervalMs += 5000;
-    else if (error !== "authorization_pending") return false;
+    else if (error !== "authorization_pending") {
+      console.error("Flow failed");
+      return false;
+    }
   }
+  console.error("Flow timed out");
   return false;
 }
