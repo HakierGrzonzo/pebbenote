@@ -24,6 +24,7 @@
     },
     "messageKeys": [
       "Dictation",
+      "DeleteLine",
       "Vibe",
       "Result[20]",
       "NumberOfLines"

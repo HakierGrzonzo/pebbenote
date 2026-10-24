@@ -130,6 +130,25 @@ static void send_dictation(char* transcription) {
   display_text("Done!");
 } 
 
+static void send_delete_line(uint8_t index) {
+  DictionaryIterator *out_iter;
+  AppMessageResult result = app_message_outbox_begin(&out_iter);
+
+  if (result != APP_MSG_OK) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to app_message_outbox_begin");
+    return;
+  }
+  dict_write_uint8(out_iter, MESSAGE_KEY_DeleteLine, index);
+  dict_write_end(out_iter);
+
+  result = app_message_outbox_send();
+  if (result != APP_MSG_OK) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to send the delete message");
+    return;
+  }
+  display_text("Deleting...");
+}
+
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *number_on_lines = dict_find(iter, MESSAGE_KEY_NumberOfLines);
 
@@ -152,7 +171,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   APP_LOG(APP_LOG_LEVEL_DEBUG, "Got %d messages", (int)number_on_lines->value->int32);
 
   numberOfMessages = min(number_on_lines->value->int32, MAX_MESSAGES);
-  selectedNote = min(numberOfMessages, selectedNote);
+  selectedNote = numberOfMessages == 0 ? 0 : min(numberOfMessages - 1, selectedNote);
 
   for (int i = 0; i < numberOfMessages; i++) {
     Tuple *note_tuple = dict_find(iter, MESSAGE_KEY_Result + i);
@@ -219,17 +238,31 @@ static void scroll_to_selected_note() {
   scroll_layer_set_content_offset(s_scroll_layer, offset, true);
 }
 
+static void select_long_click_handler(ClickRecognizerRef recognizer, void *context) {
+  if (numberOfMessages == 0) {
+    return;
+  }
+  send_delete_line(selectedNote);
+}
+
 static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
+  if (numberOfMessages == 0) {
+    return;
+  }
   selectedNote = (selectedNote + 1) % numberOfMessages;
   scroll_to_selected_note();
 }
 static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
-  selectedNote = (selectedNote - 1) % numberOfMessages;
+  if (numberOfMessages == 0) {
+    return;
+  }
+  selectedNote = (selectedNote + numberOfMessages - 1) % numberOfMessages;
   scroll_to_selected_note();
 }
 
 static void click_config_provider(void *context) {
   window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
+  window_long_click_subscribe(BUTTON_ID_SELECT, 500, select_long_click_handler, NULL);
   window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 300, down_click_handler);
   window_single_repeating_click_subscribe(BUTTON_ID_UP, 300, up_click_handler);
 }

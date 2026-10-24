@@ -42,6 +42,25 @@ async function refreshNote() {
   }
 }
 
+async function deleteNoteLine(index: number) {
+  const notes = makeClient().notes;
+  const token = Pebble.getAccountToken();
+  try {
+    const note = await notes.getNoteById("default", token);
+    const lines = note.content.split("\n");
+    if (index >= 0 && index < lines.length) {
+      lines.splice(index, 1);
+    }
+    const updated = await notes.editNoteById("default", token, {
+      content: lines.join("\n"),
+    });
+    PebbleTS.sendAppMessage({ ...encodeNote(updated.content) });
+  } catch (e) {
+    console.error("Failed to delete line", String(e));
+    PebbleTS.sendAppMessage({ Result: "Backend unreachable" });
+  }
+}
+
 Pebble.addEventListener("showConfiguration", async () => {
   let notes: ConfigNote[] | null = null;
   try {
@@ -102,6 +121,11 @@ Pebble.addEventListener("ready", async () => {
   Pebble.addEventListener("appmessage", async (e) => {
     const payload = e.payload;
     console.log("Got message", JSON.stringify(payload));
+    const deleteLine: number | undefined = payload["DeleteLine"];
+    if (deleteLine !== undefined) {
+      await deleteNoteLine(deleteLine);
+      return;
+    }
     const dictation: string | undefined = payload["Dictation"];
     if (!dictation) {
       console.error("dictation key is wrong?");
