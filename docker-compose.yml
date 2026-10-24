@@ -59,6 +59,8 @@ services:
       POSTGRES_DB: postgres
       POSTGRES_HOST: localhost
       OLLAMA_HOST: "localhost"
+      CHAT_MODEL: ${CHAT_MODEL:-gemma4:e2b}
+      DECISION_MODEL: ${DECISION_MODEL:-nimble}
       OIDC_ISSUER: "http://localhost:8080/realms/pebbenote"
       OIDC_AUDIENCE: "pebbenote-be"
     depends_on:

@@ -19,7 +19,7 @@ logger = getLogger(__name__)
 
 
 class OllamaAdapter(AIAdapter):
-    model = "gemma4:e2b"
+    model = settings.CHAT_MODEL
 
     def __init__(self) -> None:
         self._ollama = AsyncClient()
