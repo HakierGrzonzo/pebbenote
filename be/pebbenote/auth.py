@@ -1,6 +1,8 @@
 from typing import Annotated
-from fastapi.security import APIKeyHeader
+
 from fastapi import Depends, HTTPException, status
+from fastapi.security import APIKeyHeader
+
 from .config import settings
 
 api_key = APIKeyHeader(name="x-temp-key", auto_error=False)

@@ -2,7 +2,6 @@ from logging import getLogger
 
 from ollama import AsyncClient, ChatResponse
 
-
 from .base import AIAdapter
 
 logger = getLogger(__name__)

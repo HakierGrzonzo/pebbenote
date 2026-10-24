@@ -21,6 +21,9 @@ uvicorn = "^0.38.0"
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.14.3"
 
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

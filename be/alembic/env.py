@@ -2,12 +2,11 @@ import asyncio
 from logging.config import fileConfig
 
 from sqlalchemy.engine import Connection
-from pebbenote.db import postgresql_url, Base
-import pebbenote.tables  # noqa: F401
 from sqlalchemy.ext.asyncio import create_async_engine
 
+import pebbenote.tables  # noqa: F401
 from alembic import context
-
+from pebbenote.db import Base, postgresql_url
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

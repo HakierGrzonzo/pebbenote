@@ -5,9 +5,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.routing import APIRoute
 
+from .actions.router import action_router
 from .notes.exceptions import NoteDoesNotExist
 from .notes.router import note_router
-from .actions.router import action_router
 
 logging.basicConfig(level=logging.INFO)
 

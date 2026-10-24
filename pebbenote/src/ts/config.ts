@@ -18,7 +18,11 @@ export function isValidUrl(url: string) {
   return /^https?:\/\/\S+$/.test(url);
 }
 
-export type ConfigNote = { note_id: string; content: string; is_default: boolean };
+export type ConfigNote = {
+  note_id: string;
+  content: string;
+  is_default: boolean;
+};
 
 export type ConfigResult = {
   backendUrl: string;

@@ -1,10 +1,10 @@
 from typing import Annotated
+
 from fastapi import APIRouter, Depends
 
 from pebbenote.actions.action_service import NoteActionService
 from pebbenote.actions.schemas import ActionEditModel
 from pebbenote.notes.schemas import NoteModel
-
 
 action_router = APIRouter(prefix="/action", tags=["Actions"])
 

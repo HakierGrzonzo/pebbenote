@@ -6,13 +6,15 @@ from sqlalchemy.exc import IntegrityError
 
 from pebbenote.db import get_test_db
 from pebbenote.notes.schemas import NoteEditModel
-from .repository import NoteRepository
+
 from ..tables import Note
 from .exceptions import NoteDoesNotExist
+from .repository import NoteRepository
 
 NUMBER_OF_NOTES = 4
 
 uuid_gen = defaultdict(uuid4)
+
 
 class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
@@ -22,14 +24,16 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         await self.prep_data()
 
     async def prep_data(self):
-        self.session.add_all([
-            Note(
-                note_text="Some text",
-                owner=self.user if i < NUMBER_OF_NOTES else "Someone else",
-                note_id=uuid_gen["note", i]
+        self.session.add_all(
+            [
+                Note(
+                    note_text="Some text",
+                    owner=self.user if i < NUMBER_OF_NOTES else "Someone else",
+                    note_id=uuid_gen["note", i],
                 )
-            for i in range(NUMBER_OF_NOTES * 2)
-            ])
+                for i in range(NUMBER_OF_NOTES * 2)
+            ]
+        )
         await self.session.flush()
 
     async def test_create_note(self):
@@ -76,9 +80,7 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         self.assertNotEqual(ours.note_id, theirs.note_id)
 
     async def test_update_default_note(self):
-        await self.repository.update_note(
-            "default", NoteEditModel(content="Edited")
-        )
+        await self.repository.update_note("default", NoteEditModel(content="Edited"))
 
         note = await self.repository.get_note_by_id("default")
         self.assertEqual(note.content, "Edited")
@@ -91,9 +93,7 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
 
     async def test_second_default_rejected(self):
         await self.repository.get_note_by_id("default")
-        self.session.add(
-            Note(note_text="", owner=self.user, is_default=True)
-        )
+        self.session.add(Note(note_text="", owner=self.user, is_default=True))
         with self.assertRaises(IntegrityError):
             await self.session.flush()
 
@@ -105,9 +105,7 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         notes = await self.repository.list_notes()
 
         self.assertTrue(result.is_default)
-        self.assertEqual(
-            [n.note_id for n in notes if n.is_default], [target]
-        )
+        self.assertEqual([n.note_id for n in notes if n.is_default], [target])
         self.assertNotEqual(old.note_id, target)
 
     async def test_set_default_idempotent(self):

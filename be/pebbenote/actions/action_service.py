@@ -1,14 +1,16 @@
 from typing import Annotated
 
 from fastapi import Depends
+
 from pebbenote.actions.repository import NoteActionRepository
 from pebbenote.actions.schemas import ActionEditModel
-from pebbenote.llm.base import AIAdapter
 from pebbenote.llm import ai_provider
+from pebbenote.llm.base import AIAdapter
 from pebbenote.llm.schemas import Chat, Message
 from pebbenote.notes.repository import NoteRepository
 from pebbenote.notes.schemas import NoteEditModel
-from .prompts import apply_action_system_prompt, apply_action_preamble
+
+from .prompts import apply_action_preamble, apply_action_system_prompt
 
 
 class NoteActionService:

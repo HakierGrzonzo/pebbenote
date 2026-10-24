@@ -1,12 +1,12 @@
 from typing import Annotated
 from uuid import UUID
+
 from fastapi import APIRouter, Depends
 
 from pebbenote.notes.repository import NoteRepository
 from pebbenote.notes.schemas import NoteEditModel, NoteModel, NoteViewModel
 from pebbenote.notes.types import NoteId
 from pebbenote.notes.view import NoteView
-
 
 note_router = APIRouter(prefix="/note", tags=["Notes"])
 

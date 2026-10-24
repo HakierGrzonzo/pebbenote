@@ -10,6 +10,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from .db import Base
 
 
@@ -24,9 +25,7 @@ class Note(Base):
 
     owner = mapped_column(Text, nullable=False)
 
-    is_default = mapped_column(
-        Boolean, nullable=False, server_default=false()
-    )
+    is_default = mapped_column(Boolean, nullable=False, server_default=false())
 
     __table_args__ = (
         # At most one default note per owner

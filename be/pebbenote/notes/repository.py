@@ -1,13 +1,16 @@
 from typing import cast
 from uuid import UUID
+
 from sqlalchemy import Select, update
 from sqlalchemy.dialects.postgresql import insert
+
 from pebbenote.db import DbSession
 from pebbenote.pebble_tokens import PebbleUserToken
+
+from ..tables import Note
 from .exceptions import NoteDoesNotExist
 from .schemas import NoteEditModel, NoteModel
 from .types import NoteId
-from ..tables import Note
 
 
 class NoteRepository:
@@ -33,15 +36,9 @@ class NoteRepository:
         return [self.map_note(note) for note in notes]
 
     async def _raw_get_default_note(self) -> Note:
-        query = (
-            Select(Note)
-            .where(Note.owner == self.user)
-            .where(Note.is_default)
-        )
+        query = Select(Note).where(Note.owner == self.user).where(Note.is_default)
 
-        note = cast(
-            Note | None, (await self.session.execute(query)).scalars().first()
-        )
+        note = cast(Note | None, (await self.session.execute(query)).scalars().first())
         if note is not None:
             return note
 
@@ -55,18 +52,14 @@ class NoteRepository:
             )
         )
 
-        return cast(
-            Note, (await self.session.execute(query)).scalars().one()
-        )
+        return cast(Note, (await self.session.execute(query)).scalars().one())
 
     async def _raw_get_note_by_id(self, note_id: NoteId) -> Note:
         if note_id == "default":
             return await self._raw_get_default_note()
 
         query = (
-            Select(Note)
-            .where(Note.note_id == note_id)
-            .where(Note.owner == self.user)
+            Select(Note).where(Note.note_id == note_id).where(Note.owner == self.user)
         )
         result = await self.session.execute(query)
 

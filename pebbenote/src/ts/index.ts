@@ -72,10 +72,12 @@ async function applyNoteChanges({ newNotes, defaultId }: ConfigResult) {
 // pkts typings omit the config-page close event
 type WebViewClosedEvent = { type: "webviewclosed"; response?: string };
 
-(Pebble.addEventListener as (
-  event: "webviewclosed",
-  callback: (e: WebViewClosedEvent) => void,
-) => void)("webviewclosed", async (e) => {
+(
+  Pebble.addEventListener as (
+    event: "webviewclosed",
+    callback: (e: WebViewClosedEvent) => void,
+  ) => void
+)("webviewclosed", async (e) => {
   if (!e.response) return;
   try {
     const result: ConfigResult = JSON.parse(decodeURIComponent(e.response));

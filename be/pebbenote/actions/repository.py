@@ -2,6 +2,7 @@ from typing import cast
 from uuid import UUID
 
 from sqlalchemy import Select, asc
+
 from pebbenote.actions.schemas import ActionModel
 from pebbenote.db import DbSession
 from pebbenote.tables import NoteAction

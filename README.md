@@ -37,4 +37,11 @@ In the `./pebbenote` folder, run:
 
 You should change the url the watchapp contacts in the `./pebbenote/src/ts/index.ts` file.
 
+### Git hooks
+
+Linting and formatting (`ruff` for `./be`, `prettier` for the watchapp's TS) run
+via [pre-commit](https://pre-commit.com). Install it (e.g. `pipx install pre-commit`),
+then run `pre-commit install` once in the repo root. Use `pre-commit run --all-files`
+to check everything.
+
 Refer to `pebble sdk` docs for further instructions.
