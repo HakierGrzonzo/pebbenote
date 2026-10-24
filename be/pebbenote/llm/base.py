@@ -1,4 +1,4 @@
-from .schemas import Chat, Message
+from .schemas import Chat, InputKind, Message
 
 
 class AIAdapter:
@@ -8,6 +8,14 @@ class AIAdapter:
             yield ollama_message
 
     async def get_completion(self, chat: Chat) -> str:
+        raise NotImplementedError()
+
+    async def classify_input(self, text: str) -> InputKind:
+        """Decides whether the text is note content or a standing instruction"""
+        raise NotImplementedError()
+
+    async def rewrite_instruction(self, text: str) -> str:
+        """Rewrites a user utterance as a first person standing instruction"""
         raise NotImplementedError()
 
 

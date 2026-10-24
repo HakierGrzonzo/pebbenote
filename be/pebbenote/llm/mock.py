@@ -1,7 +1,7 @@
 from typing import Literal
 
 from .base import AIAdapter
-from .schemas import Chat
+from .schemas import Chat, InputKind
 
 type CallType = Literal["attachment", "chat"]
 
@@ -16,6 +16,8 @@ class MockAdapter(AIAdapter):
             "attachment": None,
             "chat": None,
         }
+        self.input_kind: InputKind = "note"
+        self.rewritten_instruction = "I should follow the instruction"
 
     def set_result(self, value: str, kind: CallType = "chat"):
         self._results[kind] = value
@@ -31,3 +33,9 @@ class MockAdapter(AIAdapter):
         if (result := self._results["chat"]) is None:
             raise Exception("Result is not set for the mock ai adapter")
         return result
+
+    async def classify_input(self, text: str) -> InputKind:
+        return self.input_kind
+
+    async def rewrite_instruction(self, text: str) -> str:
+        return self.rewritten_instruction

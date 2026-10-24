@@ -54,3 +54,19 @@ class NoteAction(Base):
     )
 
     note: Mapped[Note] = relationship(back_populates="actions")
+
+
+class UserInstruction(Base):
+    __tablename__ = "user_instruction"
+    instruction_id = mapped_column(
+        Uuid, primary_key=True, server_default=func.gen_random_uuid()
+    )
+
+    owner = mapped_column(Text, nullable=False, index=True)
+    instruction_text = mapped_column(Text, nullable=False)
+
+    created_at = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=func.clock_timestamp(),
+    )

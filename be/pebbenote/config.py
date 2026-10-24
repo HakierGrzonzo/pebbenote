@@ -15,6 +15,7 @@ class AppSettings(BaseSettings):
     POSTGRES_LOG_QUERIES: bool = False
 
     AI_PROVIDER: AiProviderKinds = "Ollama"
+    DECISION_MODEL: str = "nimble"
 
     ENVIRONMENT: EnvironmentKinds = "local"
 

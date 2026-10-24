@@ -6,6 +6,8 @@ A simple, ollama powered note taking app for the pebble smartwatch!
 
 - A FastAPI backend for note storage
     - Ollama for transforming your dictated ramblings into nicely formatted notes
+    - Standing instructions ("always sort the grocery list by aisle") are 
+      detected by a decision model and stored per user
 - A pebble watchapp that can view a note and supports dictation on `select` key press
     - Written in C, TS and uses a generated OpenAPI client!
 
@@ -20,6 +22,9 @@ Requirements:
 - node
 - docker
 - pebble sdk
+
+Ollama (0.35 or newer, for decision models) must run on the host with the
+models pulled: `ollama pull gemma4:e2b` and `ollama pull nimble`.
 
 Bring up the backend via the following command:
 
