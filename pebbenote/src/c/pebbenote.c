@@ -13,7 +13,7 @@ const uint32_t inbox_size = 2048;
 const uint32_t outbox_size = 512;
 
 
-#define min(a, b) a > b ? b : a
+#define min(a, b) ((a) > (b) ? (b) : (a))
 
 GRect s_bounds;
 
@@ -25,6 +25,10 @@ struct MessageWithPrefix {
 };
 
 #define MAX_MESSAGES 20
+
+// Cached note: one persist key for the line count, then one key per line
+#define PERSIST_KEY_COUNT 1
+#define PERSIST_KEY_LINE_BASE 100
 
 uint8_t numberOfMessages = 0;
 uint8_t selectedNote = 0;
@@ -74,8 +78,8 @@ static void display_notes() {
         text_layer_get_layer(message.layer), 
         GRect(prefixOffset, yOffset, s_bounds.size.w - prefixOffset, s_bounds.size.h)
     );
-    text_layer_set_text(message.layer, message.message);
-    
+    text_layer_set_text(message.layer, message.message ? message.message : "");
+
     GFont* fontToSet;
     GColor color;
     GColor backgroundColor;
@@ -108,6 +112,53 @@ static void display_notes() {
       s_scroll_layer, 
       GSize(s_bounds.size.w, yOffset)
   );
+}
+
+static void save_notes() {
+  persist_write_int(PERSIST_KEY_COUNT, numberOfMessages);
+  for (int i = 0; i < MAX_MESSAGES; i++) {
+    uint32_t key = PERSIST_KEY_LINE_BASE + i;
+    if (i >= numberOfMessages || messages[i].message == NULL) {
+      persist_delete(key);
+      continue;
+    }
+    // Format matches the inbox message: first byte is indent, then the cstring
+    char buffer[PERSIST_DATA_MAX_LENGTH];
+    size_t length = min(strlen(messages[i].message), sizeof(buffer) - 2);
+    buffer[0] = messages[i].prefix;
+    memcpy(buffer + 1, messages[i].message, length);
+    buffer[length + 1] = '\0';
+    persist_write_data(key, buffer, length + 2);
+  }
+}
+
+// Fills messages[] from persistent storage, returns whether there was a cached note
+static bool load_notes() {
+  if (!persist_exists(PERSIST_KEY_COUNT)) {
+    return false;
+  }
+  int count = min(persist_read_int(PERSIST_KEY_COUNT), MAX_MESSAGES);
+  int loaded = 0;
+  for (int i = 0; i < count; i++) {
+    char buffer[PERSIST_DATA_MAX_LENGTH];
+    int size = persist_read_data(PERSIST_KEY_LINE_BASE + i, buffer, sizeof(buffer));
+    if (size < 2) {
+      break;
+    }
+    buffer[size - 1] = '\0';
+    char* text = malloc(size - 1);
+    if (text == NULL) {
+      break;
+    }
+    memcpy(text, buffer + 1, size - 1);
+    free(messages[i].message);
+    messages[i].prefix = buffer[0];
+    messages[i].message = text;
+    loaded++;
+  }
+  numberOfMessages = loaded;
+  selectedNote = 0;
+  return loaded > 0;
 }
 
 static void send_dictation(char* transcription) {
@@ -163,42 +214,55 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     return;
   }
 
-  if (number_on_lines->type != TUPLE_INT && number_on_lines->length != 4) {
+  if (number_on_lines->type != TUPLE_INT || number_on_lines->length != 4) {
     display_text("tuple is not int32");
     return;
   }
 
   APP_LOG(APP_LOG_LEVEL_DEBUG, "Got %d messages", (int)number_on_lines->value->int32);
 
-  numberOfMessages = min(number_on_lines->value->int32, MAX_MESSAGES);
-  selectedNote = numberOfMessages == 0 ? 0 : min(numberOfMessages - 1, selectedNote);
+  int32_t newCount = min(number_on_lines->value->int32, MAX_MESSAGES);
+  if (newCount < 0) {
+    newCount = 0;
+  }
 
-  for (int i = 0; i < numberOfMessages; i++) {
+  // Stage the new lines so a malformed message can't leave messages[] half-updated
+  char* newTexts[MAX_MESSAGES];
+  int8_t newPrefixes[MAX_MESSAGES];
+
+  for (int i = 0; i < newCount; i++) {
     Tuple *note_tuple = dict_find(iter, MESSAGE_KEY_Result + i);
 
-    if(!number_on_lines || note_tuple->type != TUPLE_CSTRING) {
+    // Format is first byte is indent, the rest is the actual cstring
+    char* newString = NULL;
+    if (note_tuple && note_tuple->type == TUPLE_CSTRING && note_tuple->length >= 2) {
+      newString = malloc(note_tuple->length - 1);
+    }
+    if (newString == NULL) {
+      for (int j = 0; j < i; j++) {
+        free(newTexts[j]);
+      }
       display_text("Failed to load notes!");
       return;
     }
-    
-    // Format is first byte is indent, the rest is the actual cstring
-    int8_t prefix = note_tuple->value->int8;
-
-    if (messages[i].message != NULL) {
-      free(messages[i].message);
-    }
-
-    int newStringLength = sizeof(char) * note_tuple->length;
-
-    char* newString = malloc(newStringLength);
 
     APP_LOG(APP_LOG_LEVEL_DEBUG, "Got %s in %d byte long message", note_tuple->value->cstring + 1, note_tuple->length);
-    strncpy(newString, note_tuple->value->cstring + 1, newStringLength);
+    memcpy(newString, note_tuple->value->cstring + 1, note_tuple->length - 1);
+    newString[note_tuple->length - 2] = '\0';
 
-    messages[i].prefix = prefix;
-    messages[i].message = newString;
-
+    newPrefixes[i] = note_tuple->value->cstring[0];
+    newTexts[i] = newString;
   }
+
+  for (int i = 0; i < MAX_MESSAGES; i++) {
+    free(messages[i].message);
+    messages[i].message = i < newCount ? newTexts[i] : NULL;
+    messages[i].prefix = i < newCount ? newPrefixes[i] : 0;
+  }
+  numberOfMessages = newCount;
+  selectedNote = numberOfMessages == 0 ? 0 : min(numberOfMessages - 1, selectedNote);
+
+  save_notes();
   display_notes();
 
 
@@ -288,17 +352,40 @@ static void window_load(Window *window) {
   }
 
   scroll_layer_add_child(s_scroll_layer, text_layer_get_layer(s_output_layer));
-  display_text("Loading...");
+
+  // Show the cached note right away, the phone will replace it once it's ready
+  if (load_notes()) {
+    display_notes();
+  } else {
+    display_text("Loading...");
+  }
 }
 
 static void window_unload(Window *window) {
+  for (int i = 0; i < MAX_MESSAGES; i++) {
+    text_layer_destroy(messages[i].layer);
+    messages[i].layer = NULL;
+    free(messages[i].message);
+    messages[i].message = NULL;
+  }
   text_layer_destroy(s_output_layer);
   scroll_layer_destroy(s_scroll_layer);
+}
+
+static void inbox_dropped_handler(AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Inbox message dropped: %d", (int)reason);
+}
+
+static void outbox_failed_handler(DictionaryIterator *iter, AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox message failed: %d", (int)reason);
+  display_text("Failed to reach phone");
 }
 
 static void init() {
   app_message_open(inbox_size, outbox_size);
   app_message_register_inbox_received(inbox_received_handler);
+  app_message_register_inbox_dropped(inbox_dropped_handler);
+  app_message_register_outbox_failed(outbox_failed_handler);
   s_main_window = window_create();
   window_set_click_config_provider(s_main_window, click_config_provider);
   window_set_window_handlers(s_main_window, (WindowHandlers) {
