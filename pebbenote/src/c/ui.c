@@ -2,6 +2,7 @@
 
 #include <string.h>
 
+#include "glance.h"
 #include "notes.h"
 
 static Window *s_main_window;
@@ -127,6 +128,8 @@ static void window_load(Window *window) {
 }
 
 static void window_unload(Window *window) {
+  // Must run before the lines are freed below
+  glance_update();
   for (int i = 0; i < MAX_MESSAGES; i++) {
     text_layer_destroy(messages[i].layer);
     messages[i].layer = NULL;
