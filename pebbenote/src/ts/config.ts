@@ -1,4 +1,4 @@
-export const DEFAULT_BASE = "http://localhost:8000";
+export const DEFAULT_BASE = "https://dev.grzegorzkoperwas.site";
 const STORAGE_KEY = "backendUrl";
 
 export function getBaseUrl(): string {
