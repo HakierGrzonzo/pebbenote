@@ -4,7 +4,7 @@
 
 CompileFlags: # Tweak the parse settings, example directory given to show format
   Add:
-    - "-I/home/hakiergrzonzo/.pebble-sdk/SDKs/current/sdk-core/pebble/flint/include"
+    - "-I/home/hakiergrzonzo/.local/share/pebble-sdk/SDKs/4.33.1/sdk-core/pebble/emery/include"
     - "-I/home/hakiergrzonzo/Desktop/programy/pebbenote/pebbenote/build/include"
     - "-I/home/hakiergrzonzo/Desktop/programy/pebbenote/pebbenote/build/basalt"
 
