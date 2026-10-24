@@ -4,8 +4,8 @@ from uuid import UUID
 from sqlalchemy import Select, update
 from sqlalchemy.dialects.postgresql import insert
 
+from pebbenote.auth import CurrentUser
 from pebbenote.db import DbSession
-from pebbenote.pebble_tokens import PebbleUserToken
 
 from ..tables import Note
 from .exceptions import NoteDoesNotExist
@@ -14,7 +14,7 @@ from .types import NoteId
 
 
 class NoteRepository:
-    def __init__(self, session: DbSession, user: PebbleUserToken) -> None:
+    def __init__(self, session: DbSession, user: CurrentUser) -> None:
         self.session = session
         self.user = user
 

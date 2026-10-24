@@ -16,6 +16,7 @@ asyncpg = "^0.30.0"
 pydantic-settings = "^2.11.0"
 alembic = "^1.17.1"
 uvicorn = "^0.38.0"
+pyjwt = {extras = ["crypto"], version = "^2.15.1"}
 
 
 [tool.poetry.group.dev.dependencies]

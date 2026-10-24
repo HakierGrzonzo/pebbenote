@@ -38,9 +38,16 @@ In the `./pebbenote` folder, run:
 
 - `npm install`, to install js dependencies and tooling
 - `npm run openapi`, to regenerate the openapi client from local BE.
-- `pebble build` to build the app.
+- `npm run build:dev` to build against the local stack (`docker compose up`), or
+  `npm run build:prod` for the deployed one. Then `pebble install --emulator basalt`
+  (or `--phone <ip>`).
 
-You should change the url the watchapp contacts in the `./pebbenote/src/ts/index.ts` file.
+Environments live in `pebbenote/environments.json` (backend url, Keycloak issuer,
+app uuid). Dev has its own uuid and name, so it installs next to prod with separate
+settings and sign-in. Building rewrites `uuid`/`displayName` in `package.json`, so
+run `npm run build:prod` (or `npm run use-env prod`) before committing. Override
+the urls for a one-off build with `PEBBENOTE_BACKEND_URL` / `PEBBENOTE_ISSUER`.
+`localhost` only works in the emulator; a real phone needs an `https://` url.
 
 ### Git hooks
 

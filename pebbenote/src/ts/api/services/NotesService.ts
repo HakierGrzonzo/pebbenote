@@ -11,41 +11,25 @@ export class NotesService {
   constructor(public readonly httpRequest: BaseHttpRequest) {}
   /**
    * List Notes
-   * @param xPebbleUserToken
    * @returns NoteModel Successful Response
    * @throws ApiError
    */
-  public listNotes(
-    xPebbleUserToken: string,
-  ): CancelablePromise<Array<NoteModel>> {
+  public listNotes(): CancelablePromise<Array<NoteModel>> {
     return this.httpRequest.request({
       method: "GET",
       url: "/note/",
-      headers: {
-        "X-pebble-user-token": xPebbleUserToken,
-      },
-      errors: {
-        422: `Validation Error`,
-      },
     });
   }
   /**
    * Create Note
    * @param content
-   * @param xPebbleUserToken
    * @returns NoteModel Successful Response
    * @throws ApiError
    */
-  public createNote(
-    content: string,
-    xPebbleUserToken: string,
-  ): CancelablePromise<NoteModel> {
+  public createNote(content: string): CancelablePromise<NoteModel> {
     return this.httpRequest.request({
       method: "POST",
       url: "/note/",
-      headers: {
-        "X-pebble-user-token": xPebbleUserToken,
-      },
       query: {
         content: content,
       },
@@ -57,22 +41,15 @@ export class NotesService {
   /**
    * Get Note By Id
    * @param noteId
-   * @param xPebbleUserToken
    * @returns NoteViewModel Successful Response
    * @throws ApiError
    */
-  public getNoteById(
-    noteId: string,
-    xPebbleUserToken: string,
-  ): CancelablePromise<NoteViewModel> {
+  public getNoteById(noteId: string): CancelablePromise<NoteViewModel> {
     return this.httpRequest.request({
       method: "GET",
       url: "/note/{note_id}",
       path: {
         note_id: noteId,
-      },
-      headers: {
-        "X-pebble-user-token": xPebbleUserToken,
       },
       errors: {
         422: `Validation Error`,
@@ -82,14 +59,12 @@ export class NotesService {
   /**
    * Edit Note By Id
    * @param noteId
-   * @param xPebbleUserToken
    * @param requestBody
    * @returns NoteModel Successful Response
    * @throws ApiError
    */
   public editNoteById(
     noteId: string,
-    xPebbleUserToken: string,
     requestBody: NoteEditModel,
   ): CancelablePromise<NoteModel> {
     return this.httpRequest.request({
@@ -97,9 +72,6 @@ export class NotesService {
       url: "/note/{note_id}",
       path: {
         note_id: noteId,
-      },
-      headers: {
-        "X-pebble-user-token": xPebbleUserToken,
       },
       body: requestBody,
       mediaType: "application/json",
@@ -111,22 +83,15 @@ export class NotesService {
   /**
    * Set Default Note
    * @param noteId
-   * @param xPebbleUserToken
    * @returns NoteModel Successful Response
    * @throws ApiError
    */
-  public setDefaultNote(
-    noteId: string,
-    xPebbleUserToken: string,
-  ): CancelablePromise<NoteModel> {
+  public setDefaultNote(noteId: string): CancelablePromise<NoteModel> {
     return this.httpRequest.request({
       method: "PUT",
       url: "/note/{note_id}/default",
       path: {
         note_id: noteId,
-      },
-      headers: {
-        "X-pebble-user-token": xPebbleUserToken,
       },
       errors: {
         422: `Validation Error`,

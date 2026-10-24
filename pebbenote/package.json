@@ -41,8 +41,12 @@
     "prettier": "^3.6.2"
   },
   "scripts": {
+    "use-env": "node scripts/use-env.mjs",
+    "prebuild": "[ -f src/ts/env.ts ] || node scripts/use-env.mjs prod",
     "build": "pkts build",
     "format": "prettier --write ./src/ts",
-    "openapi": "openapi --input http://localhost:8000/openapi.json --output src/ts/api --client xhr --name AppClient --request ./request-template.ts && npm run format"
+    "openapi": "openapi --input http://localhost:8000/openapi.json --output src/ts/api --client xhr --name AppClient --request ./request-template.ts && npm run format",
+    "build:prod": "node scripts/use-env.mjs prod && pebble build",
+    "build:dev": "node scripts/use-env.mjs dev && pebble build"
   }
 }

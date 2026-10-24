@@ -10,21 +10,16 @@ export class ActionsService {
   constructor(public readonly httpRequest: BaseHttpRequest) {}
   /**
    * Apply Action
-   * @param xPebbleUserToken
    * @param requestBody
    * @returns NoteModel Successful Response
    * @throws ApiError
    */
   public applyAction(
-    xPebbleUserToken: string,
     requestBody: ActionEditModel,
   ): CancelablePromise<NoteModel> {
     return this.httpRequest.request({
       method: "POST",
       url: "/action/",
-      headers: {
-        "X-pebble-user-token": xPebbleUserToken,
-      },
       body: requestBody,
       mediaType: "application/json",
       errors: {

@@ -1,0 +1,41 @@
+{
+  "realm": "pebbenote",
+  "enabled": true,
+  "accessTokenLifespan": 600,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "registrationAllowed": false,
+  "clientScopes": [
+    {
+      "name": "pebbenote-be-audience",
+      "protocol": "openid-connect",
+      "attributes": { "include.in.token.scope": "false" },
+      "protocolMappers": [
+        {
+          "name": "pebbenote-be-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "pebbenote-be",
+            "id.token.claim": "false",
+            "access.token.claim": "true"
+          }
+        }
+      ]
+    }
+  ],
+  "clients": [
+    {
+      "clientId": "pebbenote-watch",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "true"
+      },
+      "defaultClientScopes": ["pebbenote-be-audience", "profile", "email"],
+      "optionalClientScopes": ["offline_access"]
+    }
+  ]
+}

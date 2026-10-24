@@ -17,6 +17,9 @@ class AppSettings(BaseSettings):
     AI_PROVIDER: AiProviderKinds = "Ollama"
     DECISION_MODEL: str = "nimble"
 
+    OIDC_ISSUER: str = "http://localhost:8080/realms/pebbenote"
+    OIDC_AUDIENCE: str = "pebbenote-be"
+
     ENVIRONMENT: EnvironmentKinds = "local"
 
 

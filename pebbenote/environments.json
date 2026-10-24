@@ -1,0 +1,14 @@
+{
+  "prod": {
+    "displayName": "pebbenote",
+    "uuid": "6543b444-696e-4860-abd2-2e125362a258",
+    "backendUrl": "https://dev.grzegorzkoperwas.site",
+    "issuer": "https://auth.grzegorzkoperwas.site/realms/pebbenote"
+  },
+  "dev": {
+    "displayName": "pebbenote (dev)",
+    "uuid": "f293249e-3739-4345-8e47-41d4c79e7038",
+    "backendUrl": "http://localhost:8000",
+    "issuer": "http://localhost:8080/realms/pebbenote"
+  }
+}

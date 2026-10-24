@@ -3,6 +3,8 @@ services:
     image: postgres:17
     volumes:
       - app_data:/var/lib/postgresql/data
+      # Only runs when the data volume is first created
+      - ./keycloak/init-db.sql:/docker-entrypoint-initdb.d/init-keycloak-db.sql:ro
     ports:
       - "5432:5432"
     environment:
@@ -16,6 +18,28 @@ services:
       timeout: 1s
       retries: 5
       start_period: 2s
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0
+    command: start-dev --import-realm
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/pebbenote-realm.json:/opt/keycloak/data/import/pebbenote-realm.json:ro
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: db
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
 
   be:
     build:
@@ -35,6 +59,8 @@ services:
       POSTGRES_DB: postgres
       POSTGRES_HOST: localhost
       OLLAMA_HOST: "localhost"
+      OIDC_ISSUER: "http://localhost:8080/realms/pebbenote"
+      OIDC_AUDIENCE: "pebbenote-be"
     depends_on:
       db:
         condition: service_healthy

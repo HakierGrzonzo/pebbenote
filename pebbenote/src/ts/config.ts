@@ -1,4 +1,6 @@
-export const DEFAULT_BASE = "https://dev.grzegorzkoperwas.site";
+import { DEFAULT_BASE } from "./env";
+
+export { DEFAULT_BASE };
 const STORAGE_KEY = "backendUrl";
 
 export function getBaseUrl(): string {
@@ -15,7 +17,9 @@ export function setBaseUrl(url: string) {
 }
 
 export function isValidUrl(url: string) {
-  return /^https?:\/\/\S+$/.test(url);
+  return /^(https:\/\/|http:\/\/(localhost|127\.0\.0\.1)([:/]|$))\S*$/.test(
+    url,
+  );
 }
 
 export type ConfigNote = {
@@ -39,7 +43,11 @@ function jsonForScript(value: unknown) {
     .replace(/\u2029/g, "\\u2029");
 }
 
-function buildConfigPage(current: string, notes: ConfigNote[] | null) {
+function buildConfigPage(
+  current: string,
+  notes: ConfigNote[] | null,
+  signInUrl: string | null,
+) {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -53,6 +61,7 @@ function buildConfigPage(current: string, notes: ConfigNote[] | null) {
 </style>
 </head>
 <body>
+<div id="signin"></div>
 <h2>Backend URL</h2>
 <input id="url" type="url" placeholder="${DEFAULT_BASE}" value="${current.replace(/"/g, "&quot;")}">
 <h2>Notes</h2>
@@ -65,6 +74,16 @@ function buildConfigPage(current: string, notes: ConfigNote[] | null) {
 <script>
   var returnTo = new URLSearchParams(location.search).get("return_to") || "pebblejs://close#";
   var notes = ${jsonForScript(notes)};
+  var signInUrl = ${jsonForScript(signInUrl)};
+  if (signInUrl) {
+    var a = document.createElement("a");
+    a.href = signInUrl;
+    a.target = "_blank";
+    a.textContent = "Sign in to pebbenote";
+    var box = document.getElementById("signin");
+    box.appendChild(a);
+    box.appendChild(document.createTextNode(" - then close this page; the watch signs in automatically."));
+  }
   var pending = [];
   var defaultId = null;
   var initialDefault = null;
@@ -78,7 +97,7 @@ function buildConfigPage(current: string, notes: ConfigNote[] | null) {
     var box = document.getElementById("notes");
     box.textContent = "";
     if (notes === null) {
-      box.textContent = "Backend unreachable - notes unavailable.";
+      box.textContent = signInUrl ? "Sign in to see notes." : "Backend unreachable - notes unavailable.";
       return;
     }
     var rows = notes.map(function (n) { return { id: n.note_id, text: label(n.content, "") }; })
@@ -121,10 +140,13 @@ function buildConfigPage(current: string, notes: ConfigNote[] | null) {
 </html>`;
 }
 
-export function configPageUrl(notes: ConfigNote[] | null) {
+export function configPageUrl(
+  notes: ConfigNote[] | null,
+  signInUrl: string | null,
+) {
   const stored = localStorage.getItem(STORAGE_KEY) || "";
   return (
     "data:text/html;charset=utf-8," +
-    encodeURIComponent(buildConfigPage(stored, notes))
+    encodeURIComponent(buildConfigPage(stored, notes, signInUrl))
   );
 }

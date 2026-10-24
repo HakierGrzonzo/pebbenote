@@ -2,13 +2,13 @@ from typing import cast
 
 from sqlalchemy import Select, asc
 
+from pebbenote.auth import CurrentUser
 from pebbenote.db import DbSession
-from pebbenote.pebble_tokens import PebbleUserToken
 from pebbenote.tables import UserInstruction
 
 
 class UserInstructionRepository:
-    def __init__(self, session: DbSession, user: PebbleUserToken) -> None:
+    def __init__(self, session: DbSession, user: CurrentUser) -> None:
         self.session = session
         self.user = user
 
