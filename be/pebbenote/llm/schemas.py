@@ -10,3 +10,12 @@ class Message(BaseModel):
 
 class Chat(BaseModel):
     messages: list[Message]
+
+
+class NoteItem(BaseModel):
+    text: str
+    children: list["NoteItem"] = []
+
+
+class NoteList(BaseModel):
+    items: list[NoteItem]
