@@ -21,6 +21,7 @@ static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
     return;
   }
   selectedNote = (selectedNote + 1) % numberOfMessages;
+  save_selected_note();
   scroll_to_selected_note();
 }
 
@@ -29,6 +30,7 @@ static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
     return;
   }
   selectedNote = (selectedNote + numberOfMessages - 1) % numberOfMessages;
+  save_selected_note();
   scroll_to_selected_note();
 }
 

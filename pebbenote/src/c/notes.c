@@ -4,6 +4,7 @@
 
 // Cached note: one persist key for the line count, then one key per line
 #define PERSIST_KEY_COUNT 1
+#define PERSIST_KEY_SELECTED 2
 #define PERSIST_KEY_LINE_BASE 100
 
 uint8_t numberOfMessages = 0;
@@ -11,8 +12,13 @@ uint8_t selectedNote = 0;
 
 struct MessageWithPrefix messages[MAX_MESSAGES];
 
+void save_selected_note(void) {
+  persist_write_int(PERSIST_KEY_SELECTED, selectedNote);
+}
+
 void save_notes(void) {
   persist_write_int(PERSIST_KEY_COUNT, numberOfMessages);
+  save_selected_note();
   for (int i = 0; i < MAX_MESSAGES; i++) {
     uint32_t key = PERSIST_KEY_LINE_BASE + i;
     if (i >= numberOfMessages || messages[i].message == NULL) {
@@ -53,6 +59,7 @@ bool load_notes(void) {
     loaded++;
   }
   numberOfMessages = loaded;
-  selectedNote = 0;
+  int selected = persist_exists(PERSIST_KEY_SELECTED) ? persist_read_int(PERSIST_KEY_SELECTED) : 0;
+  selectedNote = (selected >= 0 && selected < loaded) ? selected : 0;
   return loaded > 0;
 }

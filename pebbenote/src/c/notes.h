@@ -19,5 +19,6 @@ extern uint8_t selectedNote;
 extern struct MessageWithPrefix messages[MAX_MESSAGES];
 
 void save_notes(void);
+void save_selected_note(void);
 // Fills messages[] from persistent storage, returns whether there was a cached note
 bool load_notes(void);
