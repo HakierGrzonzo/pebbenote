@@ -4,12 +4,14 @@
   "accessTokenLifespan": 600,
   "revokeRefreshToken": true,
   "refreshTokenMaxReuse": 0,
-  "registrationAllowed": false,
+  "registrationAllowed": true,
   "clientScopes": [
     {
       "name": "pebbenote-be-audience",
       "protocol": "openid-connect",
-      "attributes": { "include.in.token.scope": "false" },
+      "attributes": {
+        "include.in.token.scope": "false"
+      },
       "protocolMappers": [
         {
           "name": "pebbenote-be-audience",
@@ -34,8 +36,24 @@
       "attributes": {
         "oauth2.device.authorization.grant.enabled": "true"
       },
-      "defaultClientScopes": ["pebbenote-be-audience", "profile", "email"],
-      "optionalClientScopes": ["offline_access"]
+      "defaultClientScopes": [
+        "basic",
+        "pebbenote-be-audience",
+        "profile",
+        "email"
+      ],
+      "optionalClientScopes": [
+        "offline_access"
+      ]
     }
-  ]
+  ],
+  "registrationEmailAsUsername": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": false,
+  "verifyEmail": false,
+  "passwordPolicy": "length(8)",
+  "webAuthnPolicyPasswordlessPasskeysEnabled": true,
+  "webAuthnPolicyPasswordlessUserVerificationRequirement": "required",
+  "webAuthnPolicyPasswordlessRequireResidentKey": "Yes"
 }

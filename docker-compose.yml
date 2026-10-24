@@ -20,7 +20,7 @@ services:
       start_period: 2s
 
   keycloak:
-    image: quay.io/keycloak/keycloak:26.0
+    image: quay.io/keycloak/keycloak:26.6.1
     command: start-dev --import-realm
     ports:
       - "8080:8080"

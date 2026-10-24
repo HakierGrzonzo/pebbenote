@@ -1,4 +1,5 @@
 from functools import lru_cache
+from logging import getLogger
 from typing import Annotated
 
 import jwt
@@ -7,6 +8,8 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import PyJWKClient
 
 from .config import settings
+
+logger = getLogger(__name__)
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -44,6 +47,7 @@ async def get_current_user(
             options={"require": ["exp", "iss", "aud", "sub"]},
         )
     except jwt.PyJWTError:
+        logger.exception("Failed to verify token")
         raise _unauthorized()
 
     return claims["sub"]
