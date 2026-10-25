@@ -3,7 +3,9 @@
   "author": "HakierGrzonzo",
   "version": "1.0.0",
   "keywords": [
-    "pebble-app"
+    "Dictation",
+    "Note Taking",
+    "AI"
   ],
   "private": true,
   "pebble": {
