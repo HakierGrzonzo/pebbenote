@@ -29,7 +29,7 @@ static void send_dictation(char* transcription) {
     return;
   }
   APP_LOG(APP_LOG_LEVEL_INFO, "Message sent");
-  display_text("Done!");
+  display_text("Sending to Ollama...");
 }
 
 void send_delete_line(uint8_t index) {
@@ -65,9 +65,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
 
   if(!number_on_lines) {
-    Tuple *note_tuple = dict_find(iter, MESSAGE_KEY_Result);
-    if (note_tuple && note_tuple->type == TUPLE_CSTRING) {
-      display_text(note_tuple->value->cstring);
+    Tuple *status_tuple = dict_find(iter, MESSAGE_KEY_Status);
+    if (status_tuple && status_tuple->type == TUPLE_CSTRING) {
+      display_text(status_tuple->value->cstring);
     } else {
       display_text("Failed to load notes?");
     }

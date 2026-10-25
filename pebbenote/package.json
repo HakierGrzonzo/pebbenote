@@ -27,7 +27,8 @@
       "Vibe",
       "Result[20]",
       "NumberOfLines",
-      "SignInRequired"
+      "SignInRequired",
+      "Status"
     ],
     "resources": {
       "media": []

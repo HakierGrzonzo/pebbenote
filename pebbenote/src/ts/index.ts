@@ -33,7 +33,7 @@ function isAuthError(e: unknown) {
 function sendFailure(e: unknown) {
   if (e instanceof ApiError && e.status === 401) signOut();
   if (isAuthError(e)) PebbleTS.sendAppMessage({ SignInRequired: 1 });
-  else PebbleTS.sendAppMessage({ Result: "Backend unreachable" });
+  else PebbleTS.sendAppMessage({ Status: "Backend unreachable" });
 }
 
 function encodeNote(note: string) {
@@ -171,7 +171,6 @@ Pebble.addEventListener("ready", async () => {
       console.error("dictation key is wrong?");
       return;
     }
-    PebbleTS.sendAppMessage({ Result: "Sending to Ollama" });
     const actionPayload: ActionEditModel = {
       note_id: "default",
       action: dictation,
