@@ -11,8 +11,9 @@ A simple, ollama powered note taking app for the pebble smartwatch!
 - A pebble watchapp that can view a note and supports dictation on `select` key press
     - Written in C, TS and uses a generated OpenAPI client!
 
-The project is in very early stages, to the point where you need to create your 
-first note via the API. But it is my first pebble app
+Sign in and manage your notes from the app's settings page in the Pebble phone app.
+
+App store listing images (icons, banner) live in `pebbenote/store-assets/`.
 
 ## How to work on:
 

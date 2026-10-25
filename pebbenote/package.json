@@ -7,8 +7,8 @@
   ],
   "private": true,
   "pebble": {
-    "displayName": "pebbenote (dev)",
-    "uuid": "f293249e-3739-4345-8e47-41d4c79e7038",
+    "displayName": "pebbenote",
+    "uuid": "6543b444-696e-4860-abd2-2e125362a258",
     "sdkVersion": "3",
     "enableMultiJS": true,
     "targetPlatforms": [
@@ -31,7 +31,14 @@
       "Status"
     ],
     "resources": {
-      "media": []
+      "media": [
+        {
+          "type": "bitmap",
+          "name": "IMAGE_MENU_ICON",
+          "file": "images/menu_icon.png",
+          "menuIcon": true
+        }
+      ]
     },
     "capabilities": [
       "configurable"

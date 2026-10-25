@@ -157,6 +157,11 @@ static void dictation_session_callback(DictationSession *session, DictationSessi
 }
 
 void start_dictation(void) {
+  // NULL when the watch has no microphone or dictation isn't supported
+  if (s_dictation_session == NULL) {
+    display_text("Dictation unavailable");
+    return;
+  }
   dictation_session_start(s_dictation_session);
 }
 
