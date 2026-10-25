@@ -8,6 +8,7 @@
 static Window *s_main_window;
 static TextLayer *s_output_layer;
 static ScrollLayer *s_scroll_layer;
+static StatusBarLayer *s_status_bar;
 static char s_last_text[512];
 static GRect s_bounds;
 
@@ -108,12 +109,18 @@ void scroll_to_selected_note(void) {
 
 static void window_load(Window *window) {
   Layer *window_layer = window_get_root_layer(window);
-  s_bounds = layer_get_bounds(window_layer);
+  GRect window_bounds = layer_get_bounds(window_layer);
+  // Content coordinates are relative to the scroll layer, which sits below the status bar
+  s_bounds = GRect(0, 0, window_bounds.size.w, window_bounds.size.h - STATUS_BAR_LAYER_HEIGHT);
   GRect content_size = GRect(s_bounds.origin.x, s_bounds.origin.y, s_bounds.size.w, s_bounds.size.h * 4);
-  GRect scroll_content_size = GRect(s_bounds.origin.x, s_bounds.origin.y, s_bounds.size.w, s_bounds.size.h);
+  GRect scroll_content_size = GRect(0, STATUS_BAR_LAYER_HEIGHT, s_bounds.size.w, s_bounds.size.h);
   s_scroll_layer = scroll_layer_create(scroll_content_size);
 
   layer_add_child(window_layer, scroll_layer_get_layer(s_scroll_layer));
+
+  s_status_bar = status_bar_layer_create();
+  status_bar_layer_set_colors(s_status_bar, GColorWhite, GColorBlack);
+  layer_add_child(window_layer, status_bar_layer_get_layer(s_status_bar));
 
   scroll_layer_set_shadow_hidden(s_scroll_layer, true);
 
@@ -147,6 +154,7 @@ static void window_unload(Window *window) {
   }
   text_layer_destroy(s_output_layer);
   scroll_layer_destroy(s_scroll_layer);
+  status_bar_layer_destroy(s_status_bar);
 }
 
 void ui_init(ClickConfigProvider click_config) {
