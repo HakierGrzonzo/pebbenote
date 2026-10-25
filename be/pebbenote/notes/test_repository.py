@@ -44,6 +44,18 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
 
         self.assertEqual(note.content, model.content)
 
+    async def test_create_note_strips_content(self):
+        note = await self.repository.create_note(NoteEditModel(content="  A note\n\n"))
+
+        self.assertEqual(note.content, "A note")
+
+    async def test_update_note_strips_content(self):
+        note = await self.repository.update_note(
+            uuid_gen["note", 0], NoteEditModel(content="Edited\n\n")
+        )
+
+        self.assertEqual(note.content, "Edited")
+
     async def test_list_note(self):
         notes = await self.repository.list_notes()
 

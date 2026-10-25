@@ -90,12 +90,12 @@ class NoteRepository:
 
     async def update_note(self, note_id: NoteId, note_model: NoteEditModel):
         note = await self._raw_get_note_by_id(note_id)
-        note.note_text = note_model.content
+        note.note_text = note_model.content.strip()
         await self.session.flush([note])
         return self.map_note(note)
 
     async def create_note(self, note_model: NoteEditModel) -> NoteModel:
-        note = Note(note_text=note_model.content, owner=self.user)
+        note = Note(note_text=note_model.content.strip(), owner=self.user)
         self.session.add(note)
         await self.session.flush([note])
 
