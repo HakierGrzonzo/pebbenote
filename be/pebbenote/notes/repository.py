@@ -12,6 +12,19 @@ from .exceptions import NoteDoesNotExist
 from .schemas import NoteEditModel, NoteModel
 from .types import NoteId
 
+# Seeded into a user's first default note. One line per watch item, so each
+# hint can be deleted on its own.
+DEFAULT_NOTE_TEXT = "\n".join(
+    [
+        "Welcome to Pebbenote!",
+        "Select: dictate, AI tidies it into the note",
+        "Up/Down: move highlight",
+        "Hold Select: delete highlighted line",
+        'Say "always ..." to set a lasting rule',
+        "Hold Select on these lines to clear them",
+    ]
+)
+
 
 class NoteRepository:
     def __init__(self, session: DbSession, user: CurrentUser) -> None:
@@ -46,7 +59,7 @@ class NoteRepository:
         # index makes this safe against concurrent requests.
         await self.session.execute(
             insert(Note)
-            .values(note_text="", owner=self.user, is_default=True)
+            .values(note_text=DEFAULT_NOTE_TEXT, owner=self.user, is_default=True)
             .on_conflict_do_nothing(
                 index_elements=[Note.owner], index_where=Note.is_default
             )

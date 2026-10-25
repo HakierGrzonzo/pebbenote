@@ -9,7 +9,7 @@ from pebbenote.notes.schemas import NoteEditModel
 
 from ..tables import Note
 from .exceptions import NoteDoesNotExist
-from .repository import NoteRepository
+from .repository import DEFAULT_NOTE_TEXT, NoteRepository
 
 NUMBER_OF_NOTES = 4
 
@@ -69,7 +69,7 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         second = await self.repository.get_note_by_id("default")
 
         self.assertEqual(first.note_id, second.note_id)
-        self.assertEqual(first.content, "")
+        self.assertEqual(first.content, DEFAULT_NOTE_TEXT)
 
     async def test_default_note_per_user(self):
         other = NoteRepository(session=self.session, user="Someone else")
