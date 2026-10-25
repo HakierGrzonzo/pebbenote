@@ -4,9 +4,9 @@ repos:
     hooks:
       - id: ruff-check
         args: [--fix]
-        files: ^be/
+        files: ^(be|cli)/
       - id: ruff-format
-        files: ^be/
+        files: ^(be|cli)/
   - repo: local
     hooks:
       - id: prettier
