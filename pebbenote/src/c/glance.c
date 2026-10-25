@@ -32,6 +32,4 @@ static void glance_reload_callback(AppGlanceReloadSession *session, size_t limit
   }
 }
 
-void glance_update(void) {
-  app_glance_reload(glance_reload_callback, NULL);
-}
+void glance_update(void) { app_glance_reload(glance_reload_callback, NULL); }

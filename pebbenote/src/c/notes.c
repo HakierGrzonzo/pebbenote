@@ -12,9 +12,7 @@ uint8_t selectedNote = 0;
 
 struct MessageWithPrefix messages[MAX_MESSAGES];
 
-void save_selected_note(void) {
-  persist_write_int(PERSIST_KEY_SELECTED, selectedNote);
-}
+void save_selected_note(void) { persist_write_int(PERSIST_KEY_SELECTED, selectedNote); }
 
 void delete_note_line(uint8_t index) {
   if (index >= numberOfMessages) {
@@ -65,7 +63,7 @@ bool load_notes(void) {
       break;
     }
     buffer[size - 1] = '\0';
-    char* text = malloc(size - 1);
+    char *text = malloc(size - 1);
     if (text == NULL) {
       break;
     }

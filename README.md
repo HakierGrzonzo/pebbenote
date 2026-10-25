@@ -56,8 +56,9 @@ the urls for a one-off build with `PEBBENOTE_BACKEND_URL` / `PEBBENOTE_ISSUER`.
 
 ### Git hooks
 
-Linting and formatting (`ruff` for `./be`, `prettier` for the watchapp's TS) run
-via [pre-commit](https://pre-commit.com). Install it (e.g. `pipx install pre-commit`),
+Linting and formatting (`ruff` for `./be`, `eslint` and `prettier` for the watchapp's TS,
+`clang-format` for its C) run via [pre-commit](https://pre-commit.com). The `eslint` hook
+uses the local install, so run `npm install` in `./pebbenote` first. Install it (e.g. `pipx install pre-commit`),
 then run `pre-commit install` once in the repo root. Use `pre-commit run --all-files`
 to check everything.
 

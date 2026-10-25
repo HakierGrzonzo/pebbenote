@@ -7,8 +7,19 @@ repos:
         files: ^(be|cli)/
       - id: ruff-format
         files: ^(be|cli)/
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v20.1.8
+    hooks:
+      - id: clang-format
+        files: ^pebbenote/src/c/.*\.(c|h)$
   - repo: local
     hooks:
+      - id: eslint
+        name: eslint
+        language: system
+        entry: npm --prefix pebbenote exec -- eslint --config pebbenote/eslint.config.mjs --fix
+        files: ^pebbenote/(src/ts|scripts)/.*\.(ts|mjs)$
+        exclude: ^pebbenote/src/ts/(api/|env\.ts)
       - id: prettier
         name: prettier
         language: node

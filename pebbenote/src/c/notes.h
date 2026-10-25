@@ -9,8 +9,8 @@
 
 struct MessageWithPrefix {
   int8_t prefix;
-  char* message;
-  TextLayer* layer;
+  char *message;
+  TextLayer *layer;
   int yOffset;
 };
 

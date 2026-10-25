@@ -7,7 +7,7 @@ void ui_init(ClickConfigProvider click_config);
 void ui_deinit(void);
 
 // Shows a centered status/dictation string in place of the note
-void display_text(char* text);
+void display_text(char *text);
 // Shows directions for signing in via the phone app's settings
 void display_sign_in(void);
 // Lays out and shows the cached note lines

@@ -18,28 +18,26 @@ static void set_longer_text_hidden(bool hide) {
   }
 }
 
-static void show_text(char* text, const char* font_key) {
-    Layer* layer = text_layer_get_layer(s_output_layer);
-    layer_set_hidden(layer, false);
-    set_longer_text_hidden(true);
+static void show_text(char *text, const char *font_key) {
+  Layer *layer = text_layer_get_layer(s_output_layer);
+  layer_set_hidden(layer, false);
+  set_longer_text_hidden(true);
 
-    layer_set_frame(layer,
-                    GRect(s_bounds.origin.x, s_bounds.size.h / 2 - 24, s_bounds.size.w, s_bounds.size.h / 3));
-    strncpy(s_last_text, text, sizeof(s_last_text) - 1);
+  layer_set_frame(layer, GRect(s_bounds.origin.x, s_bounds.size.h / 2 - 24, s_bounds.size.w,
+                               s_bounds.size.h / 3));
+  strncpy(s_last_text, text, sizeof(s_last_text) - 1);
 
-    text_layer_set_text_alignment(s_output_layer, GTextAlignmentCenter);
-    text_layer_set_font(s_output_layer, fonts_get_system_font(font_key));
-    text_layer_set_text(s_output_layer, s_last_text);
+  text_layer_set_text_alignment(s_output_layer, GTextAlignmentCenter);
+  text_layer_set_font(s_output_layer, fonts_get_system_font(font_key));
+  text_layer_set_text(s_output_layer, s_last_text);
 
-    GSize text_size = text_layer_get_content_size(s_output_layer);
-    layer_set_frame(layer,
-                    GRect(s_bounds.origin.x, s_bounds.size.h / 2 - 24, s_bounds.size.w, text_size.h));
-    scroll_layer_set_content_size(s_scroll_layer, text_size);
+  GSize text_size = text_layer_get_content_size(s_output_layer);
+  layer_set_frame(layer,
+                  GRect(s_bounds.origin.x, s_bounds.size.h / 2 - 24, s_bounds.size.w, text_size.h));
+  scroll_layer_set_content_size(s_scroll_layer, text_size);
 }
 
-void display_text(char* text) {
-  show_text(text, FONT_KEY_GOTHIC_28);
-}
+void display_text(char *text) { show_text(text, FONT_KEY_GOTHIC_28); }
 
 void display_sign_in(void) {
   show_text("Sign in required\n"
@@ -60,13 +58,11 @@ void display_notes(void) {
     struct MessageWithPrefix message = messages[i];
     layer_set_hidden(text_layer_get_layer(message.layer), false);
     int prefixOffset = min(message.prefix * 2, 40);
-    layer_set_frame(
-        text_layer_get_layer(message.layer),
-        GRect(prefixOffset, yOffset, s_bounds.size.w - prefixOffset, s_bounds.size.h)
-    );
+    layer_set_frame(text_layer_get_layer(message.layer),
+                    GRect(prefixOffset, yOffset, s_bounds.size.w - prefixOffset, s_bounds.size.h));
     text_layer_set_text(message.layer, message.message ? message.message : "");
 
-    GFont* fontToSet;
+    GFont *fontToSet;
     GColor color;
     GColor backgroundColor;
     uint8_t margin = 0;
@@ -88,16 +84,12 @@ void display_notes(void) {
     GSize text_size = text_layer_get_content_size(message.layer);
     layer_set_frame(
         text_layer_get_layer(message.layer),
-        GRect(prefixOffset, yOffset, s_bounds.size.w - prefixOffset, text_size.h + 2 + margin)
-    );
+        GRect(prefixOffset, yOffset, s_bounds.size.w - prefixOffset, text_size.h + 2 + margin));
     messages[i].yOffset = yOffset;
 
     yOffset += text_size.h + 2 + margin;
   }
-  scroll_layer_set_content_size(
-      s_scroll_layer,
-      GSize(s_bounds.size.w, yOffset)
-  );
+  scroll_layer_set_content_size(s_scroll_layer, GSize(s_bounds.size.w, yOffset));
 }
 
 void scroll_to_selected_note(void) {
@@ -112,7 +104,8 @@ static void window_load(Window *window) {
   GRect window_bounds = layer_get_bounds(window_layer);
   // Content coordinates are relative to the scroll layer, which sits below the status bar
   s_bounds = GRect(0, 0, window_bounds.size.w, window_bounds.size.h - STATUS_BAR_LAYER_HEIGHT);
-  GRect content_size = GRect(s_bounds.origin.x, s_bounds.origin.y, s_bounds.size.w, s_bounds.size.h * 4);
+  GRect content_size =
+      GRect(s_bounds.origin.x, s_bounds.origin.y, s_bounds.size.w, s_bounds.size.h * 4);
   GRect scroll_content_size = GRect(0, STATUS_BAR_LAYER_HEIGHT, s_bounds.size.w, s_bounds.size.h);
   s_scroll_layer = scroll_layer_create(scroll_content_size);
 
@@ -160,13 +153,11 @@ static void window_unload(Window *window) {
 void ui_init(ClickConfigProvider click_config) {
   s_main_window = window_create();
   window_set_click_config_provider(s_main_window, click_config);
-  window_set_window_handlers(s_main_window, (WindowHandlers) {
-    .load = window_load,
-    .unload = window_unload,
-  });
+  window_set_window_handlers(s_main_window, (WindowHandlers){
+                                                .load = window_load,
+                                                .unload = window_unload,
+                                            });
   window_stack_push(s_main_window, true);
 }
 
-void ui_deinit(void) {
-  window_destroy(s_main_window);
-}
+void ui_deinit(void) { window_destroy(s_main_window); }

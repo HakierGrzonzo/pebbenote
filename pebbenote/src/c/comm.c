@@ -12,7 +12,7 @@ static bool s_sign_in_required;
 static const uint32_t inbox_size = 2048;
 static const uint32_t outbox_size = 512;
 
-static void send_dictation(char* transcription) {
+static void send_dictation(char *transcription) {
   DictionaryIterator *out_iter;
   AppMessageResult result = app_message_outbox_begin(&out_iter);
 
@@ -74,9 +74,7 @@ void queue_delete_line(uint8_t index) {
   }
 }
 
-bool comm_sign_in_required(void) {
-  return s_sign_in_required;
-}
+bool comm_sign_in_required(void) { return s_sign_in_required; }
 
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   Tuple *number_on_lines = dict_find(iter, MESSAGE_KEY_NumberOfLines);
@@ -93,7 +91,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     return;
   }
 
-  if(!number_on_lines) {
+  if (!number_on_lines) {
     Tuple *status_tuple = dict_find(iter, MESSAGE_KEY_Status);
     if (status_tuple && status_tuple->type == TUPLE_CSTRING) {
       display_text(status_tuple->value->cstring);
@@ -116,14 +114,14 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
 
   // Stage the new lines so a malformed message can't leave messages[] half-updated
-  char* newTexts[MAX_MESSAGES];
+  char *newTexts[MAX_MESSAGES];
   int8_t newPrefixes[MAX_MESSAGES];
 
   for (int i = 0; i < newCount; i++) {
     Tuple *note_tuple = dict_find(iter, MESSAGE_KEY_Result + i);
 
     // Format is first byte is indent, the rest is the actual cstring
-    char* newString = NULL;
+    char *newString = NULL;
     if (note_tuple && note_tuple->type == TUPLE_CSTRING && note_tuple->length >= 2) {
       newString = malloc(note_tuple->length - 1);
     }
@@ -135,7 +133,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
       return;
     }
 
-    APP_LOG(APP_LOG_LEVEL_DEBUG, "Got %s in %d byte long message", note_tuple->value->cstring + 1, note_tuple->length);
+    APP_LOG(APP_LOG_LEVEL_DEBUG, "Got %s in %d byte long message", note_tuple->value->cstring + 1,
+            note_tuple->length);
     memcpy(newString, note_tuple->value->cstring + 1, note_tuple->length - 1);
     newString[note_tuple->length - 2] = '\0';
 
@@ -154,7 +153,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   save_notes();
   display_notes();
 
-
   Tuple *vibe_tuple = dict_find(iter, MESSAGE_KEY_Vibe);
   if (vibe_tuple) {
     vibes_short_pulse();
@@ -165,7 +163,8 @@ static void inbox_dropped_handler(AppMessageResult reason, void *context) {
   APP_LOG(APP_LOG_LEVEL_ERROR, "Inbox message dropped: %d", (int)reason);
 }
 
-static void outbox_failed_handler(DictionaryIterator *iter, AppMessageResult reason, void *context) {
+static void outbox_failed_handler(DictionaryIterator *iter, AppMessageResult reason,
+                                  void *context) {
   APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox message failed: %d", (int)reason);
   display_text("Failed to reach phone");
 }
@@ -174,13 +173,14 @@ static void outbox_failed_handler(DictionaryIterator *iter, AppMessageResult rea
 
 static void dictation_session_callback(DictationSession *session, DictationSessionStatus status,
                                        char *transcription, void *context) {
-  if(status == DictationSessionStatusSuccess) {
+  if (status == DictationSessionStatusSuccess) {
     // Display the dictated text
     send_dictation(transcription);
   } else {
     // Display the reason for any error
     static char s_failed_buff[128];
-    snprintf(s_failed_buff, sizeof(s_failed_buff), "Transcription failed.\n\nError ID:\n%d", (int)status);
+    snprintf(s_failed_buff, sizeof(s_failed_buff), "Transcription failed.\n\nError ID:\n%d",
+             (int)status);
     display_text(s_failed_buff);
   }
 }
