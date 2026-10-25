@@ -54,8 +54,9 @@ function buildConfigPage(
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>pebbenote</title>
 <style>
-  body { font-family: sans-serif; margin: 16px; }
-  input[type=url], input[type=text] { width: 100%; box-sizing: border-box; padding: 8px; font-size: 16px; }
+  body { font-family: sans-serif; margin: 16px; background: #333; color: #fff; color-scheme: dark; }
+  a { color: #8ab4f8; }
+  input[type=url], input[type=text] { width: 100%; box-sizing: border-box; padding: 8px; font-size: 16px; background: #444; color: #fff; border: 1px solid #666; }
   button { margin-top: 12px; padding: 10px 16px; font-size: 16px; }
   label { display: block; padding: 6px 0; }
 </style>
