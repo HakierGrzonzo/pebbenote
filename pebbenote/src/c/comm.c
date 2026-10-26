@@ -32,23 +32,46 @@ static void send_dictation(char* transcription) {
   display_text("Sending to Ollama...");
 }
 
-void send_delete_line(uint8_t index) {
-  DictionaryIterator *out_iter;
-  AppMessageResult result = app_message_outbox_begin(&out_iter);
+// Deletes are batched and sent once the user stops deleting for this long
+#define DELETE_DEBOUNCE_MS 1500
 
-  if (result != APP_MSG_OK) {
-    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to app_message_outbox_begin");
+// Each index is relative to the note after the earlier deletes were applied
+static uint8_t s_pending_deletes[MAX_MESSAGES];
+static uint8_t s_pending_count;
+static AppTimer *s_delete_timer;
+
+static void send_pending_deletes(void *context) {
+  s_delete_timer = NULL;
+  uint8_t count = s_pending_count;
+  s_pending_count = 0;
+  if (count == 0) {
     return;
   }
-  dict_write_uint8(out_iter, MESSAGE_KEY_DeleteLine, index);
+
+  DictionaryIterator *out_iter;
+  AppMessageResult result = app_message_outbox_begin(&out_iter);
+  if (result != APP_MSG_OK) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to app_message_outbox_begin");
+    display_text("Failed to reach phone");
+    return;
+  }
+  dict_write_data(out_iter, MESSAGE_KEY_DeleteLine, s_pending_deletes, count);
   dict_write_end(out_iter);
 
   result = app_message_outbox_send();
   if (result != APP_MSG_OK) {
     APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to send the delete message");
-    return;
+    display_text("Failed to reach phone");
   }
-  display_text("Deleting...");
+}
+
+void queue_delete_line(uint8_t index) {
+  if (s_pending_count < MAX_MESSAGES) {
+    s_pending_deletes[s_pending_count++] = index;
+  }
+  if (s_delete_timer == NULL || !app_timer_reschedule(s_delete_timer, DELETE_DEBOUNCE_MS)) {
+    s_delete_timer = app_timer_register(DELETE_DEBOUNCE_MS, send_pending_deletes, NULL);
+  }
 }
 
 bool comm_sign_in_required(void) {
@@ -61,6 +84,12 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   s_sign_in_required = dict_find(iter, MESSAGE_KEY_SignInRequired) != NULL;
   if (s_sign_in_required) {
     display_sign_in();
+    return;
+  }
+
+  // A note sent before the queued deletes would bring deleted lines back.
+  // The phone sends a fresh note after it applies the batch.
+  if (s_pending_count > 0) {
     return;
   }
 

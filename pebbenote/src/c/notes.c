@@ -16,6 +16,23 @@ void save_selected_note(void) {
   persist_write_int(PERSIST_KEY_SELECTED, selectedNote);
 }
 
+void delete_note_line(uint8_t index) {
+  if (index >= numberOfMessages) {
+    return;
+  }
+  free(messages[index].message);
+  // Only the content moves, each slot keeps its own TextLayer
+  for (int i = index; i < numberOfMessages - 1; i++) {
+    messages[i].message = messages[i + 1].message;
+    messages[i].prefix = messages[i + 1].prefix;
+  }
+  messages[numberOfMessages - 1].message = NULL;
+  messages[numberOfMessages - 1].prefix = 0;
+  numberOfMessages--;
+  selectedNote = numberOfMessages == 0 ? 0 : min(numberOfMessages - 1, selectedNote);
+  save_notes();
+}
+
 void save_notes(void) {
   persist_write_int(PERSIST_KEY_COUNT, numberOfMessages);
   save_selected_note();

@@ -61,13 +61,16 @@ async function refreshNote() {
   }
 }
 
-async function deleteNoteLine(index: number) {
+// Each index is relative to the note after the earlier deletes, like the watch applied them
+async function deleteNoteLines(indexes: number[]) {
   const notes = makeClient().notes;
   try {
     const note = await notes.getNoteById("default");
     const lines = note.content.split("\n");
-    if (index >= 0 && index < lines.length) {
-      lines.splice(index, 1);
+    for (const index of indexes) {
+      if (index >= 0 && index < lines.length) {
+        lines.splice(index, 1);
+      }
     }
     const updated = await notes.editNoteById("default", {
       content: lines.join("\n"),
@@ -161,9 +164,12 @@ Pebble.addEventListener("ready", async () => {
 
   Pebble.addEventListener("appmessage", async (e) => {
     const payload = e.payload;
-    const deleteLine: number | undefined = payload["DeleteLine"];
+    // The watch sends a byte array of batched indexes
+    const deleteLine: number[] | number | undefined = payload["DeleteLine"];
     if (deleteLine !== undefined) {
-      await deleteNoteLine(deleteLine);
+      await deleteNoteLines(
+        Array.isArray(deleteLine) ? deleteLine : [deleteLine],
+      );
       return;
     }
     const dictation: string | undefined = payload["Dictation"];

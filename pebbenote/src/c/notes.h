@@ -22,3 +22,5 @@ void save_notes(void);
 void save_selected_note(void);
 // Fills messages[] from persistent storage, returns whether there was a cached note
 bool load_notes(void);
+// Removes a line locally and keeps the selection on the line that took its place
+void delete_note_line(uint8_t index);

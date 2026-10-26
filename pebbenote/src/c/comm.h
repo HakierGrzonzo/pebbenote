@@ -10,4 +10,5 @@ void comm_deinit(void);
 bool comm_sign_in_required(void);
 
 void start_dictation(void);
-void send_delete_line(uint8_t index);
+// Queues a line delete, the batch is sent after a short pause in deleting
+void queue_delete_line(uint8_t index);

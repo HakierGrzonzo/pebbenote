@@ -17,7 +17,15 @@ static void select_long_click_handler(ClickRecognizerRef recognizer, void *conte
   if (numberOfMessages == 0) {
     return;
   }
-  send_delete_line(selectedNote);
+  // Delete locally right away so several lines can be removed quickly
+  queue_delete_line(selectedNote);
+  delete_note_line(selectedNote);
+  vibes_short_pulse();
+  if (numberOfMessages == 0) {
+    display_text("Note is empty");
+  } else {
+    scroll_to_selected_note();
+  }
 }
 
 static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
