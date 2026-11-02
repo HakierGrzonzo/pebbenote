@@ -37,6 +37,7 @@ class NoteRepository:
             note_id=note.note_id,
             content=note.note_text,
             is_default=note.is_default,
+            updated_at=note.updated_at,
         )
 
     async def list_notes(self) -> list[NoteModel]:
@@ -48,15 +49,8 @@ class NoteRepository:
 
         return [self.map_note(note) for note in notes]
 
-    async def _raw_get_default_note(self) -> Note:
-        query = Select(Note).where(Note.owner == self.user).where(Note.is_default)
-
-        note = cast(Note | None, (await self.session.execute(query)).scalars().first())
-        if note is not None:
-            return note
-
-        # The user's first visit: create the default note. The partial unique
-        # index makes this safe against concurrent requests.
+    async def _create_default_note(self) -> None:
+        # The partial unique index makes this safe against concurrent requests
         await self.session.execute(
             insert(Note)
             .values(note_text=DEFAULT_NOTE_TEXT, owner=self.user, is_default=True)
@@ -65,26 +59,32 @@ class NoteRepository:
             )
         )
 
-        return cast(Note, (await self.session.execute(query)).scalars().one())
-
-    async def _raw_get_note_by_id(self, note_id: NoteId) -> Note:
+    async def _raw_get_note_by_id(
+        self, note_id: NoteId, for_update: bool = False
+    ) -> Note:
+        query = Select(Note).where(Note.owner == self.user)
         if note_id == "default":
-            return await self._raw_get_default_note()
+            query = query.where(Note.is_default)
+        else:
+            query = query.where(Note.note_id == note_id)
+        if for_update:
+            # Serializes concurrent edits of one note
+            query = query.with_for_update().execution_options(populate_existing=True)
 
-        query = (
-            Select(Note).where(Note.note_id == note_id).where(Note.owner == self.user)
-        )
-        result = await self.session.execute(query)
+        note = (await self.session.execute(query)).scalar_one_or_none()
 
-        note = cast(Note | None, result.scalars().first())
+        if note is None and note_id == "default":
+            # The user's first visit
+            await self._create_default_note()
+            note = (await self.session.execute(query)).scalar_one()
 
         if note is None:
             raise NoteDoesNotExist(note_id)
 
         return note
 
-    async def get_note_by_id(self, note_id: NoteId):
-        note = await self._raw_get_note_by_id(note_id)
+    async def get_note_by_id(self, note_id: NoteId, for_update: bool = False):
+        note = await self._raw_get_note_by_id(note_id, for_update)
 
         return self.map_note(note)
 

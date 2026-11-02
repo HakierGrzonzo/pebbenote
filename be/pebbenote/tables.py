@@ -1,6 +1,10 @@
+from datetime import UTC, datetime
+from enum import StrEnum
+
 from sqlalchemy import (
     TIMESTAMP,
     Boolean,
+    Enum,
     ForeignKey,
     Index,
     Text,
@@ -12,6 +16,28 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+def updated_at_column():
+    # Set from Python so flushed objects keep a loaded value, a SQL expression
+    # would expire the attribute and need a lazy load
+    return mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+        server_default=func.clock_timestamp(),
+    )
+
+
+class ActionStatus(StrEnum):
+    pending = "pending"
+    done = "done"
+    failed = "failed"
 
 
 class Note(Base):
@@ -26,6 +52,8 @@ class Note(Base):
     owner = mapped_column(Text, nullable=False)
 
     is_default = mapped_column(Boolean, nullable=False, server_default=false())
+
+    updated_at = updated_at_column()
 
     __table_args__ = (
         # At most one default note per owner
@@ -52,6 +80,18 @@ class NoteAction(Base):
         nullable=False,
         server_default=func.current_timestamp(),
     )
+
+    status = mapped_column(
+        Enum(
+            ActionStatus,
+            name="action_status",
+            values_callable=lambda e: [m.value for m in e],
+        ),
+        nullable=False,
+        server_default=ActionStatus.done.value,
+    )
+
+    updated_at = updated_at_column()
 
     note: Mapped[Note] = relationship(back_populates="actions")
 

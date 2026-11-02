@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated
 
 from fastapi import Depends
@@ -23,3 +24,11 @@ class NoteView:
         actions = await self.action_repository.list_actions(note.note_id)
 
         return NoteViewModel(**note.model_dump(), actions=actions)
+
+    async def get_updated_at(self, note_id: NoteId) -> datetime:
+        return self.updated_at(await self.get_note_by_id(note_id))
+
+    @staticmethod
+    def updated_at(view: NoteViewModel) -> datetime:
+        """When anything shown in the note view last changed"""
+        return max([view.updated_at, *(action.updated_at for action in view.actions)])

@@ -130,3 +130,11 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
     async def test_set_default_non_ours(self):
         with self.assertRaises(NoteDoesNotExist):
             await self.repository.set_default_note(uuid_gen["note", 5])
+
+    async def test_update_bumps_updated_at(self):
+        before = await self.repository.get_note_by_id(uuid_gen["note", 0])
+        after = await self.repository.update_note(
+            uuid_gen["note", 0], NoteEditModel(content="Edited")
+        )
+
+        self.assertGreater(after.updated_at, before.updated_at)

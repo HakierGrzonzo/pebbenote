@@ -23,5 +23,10 @@ class AppSettings(BaseSettings):
 
     ENVIRONMENT: EnvironmentKinds = "local"
 
+    REDIS_URL: str = "redis://localhost:6379"
+    # How long POST /action/ waits for the LLM before answering 202 Accepted
+    ACTION_WAIT_SECONDS: float = 10
+    ACTION_MAX_RETRIES: int = 3
+
 
 settings = AppSettings()

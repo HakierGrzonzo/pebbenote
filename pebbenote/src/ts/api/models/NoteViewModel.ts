@@ -7,5 +7,6 @@ export type NoteViewModel = {
   note_id: string;
   content: string;
   is_default: boolean;
+  updated_at: string;
   actions: Array<ActionModel>;
 };

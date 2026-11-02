@@ -5,7 +5,7 @@ from sqlalchemy import Select, asc
 
 from pebbenote.actions.schemas import ActionModel
 from pebbenote.db import DbSession
-from pebbenote.tables import NoteAction
+from pebbenote.tables import ActionStatus, NoteAction
 
 
 class NoteActionRepository:
@@ -18,7 +18,9 @@ class NoteActionRepository:
             note_action_id=action.note_action_id,
             note_id=action.note_id,
             action=action.action_text,
+            status=action.status,
             created_at=action.created_at,
+            updated_at=action.updated_at,
         )
 
     async def list_actions(self, note_id: UUID):
@@ -34,9 +36,25 @@ class NoteActionRepository:
 
         return [self.map_action(action) for action in actions]
 
-    async def add_action(self, note_id: UUID, action_text: str):
-        action = NoteAction(note_id=note_id, action_text=action_text)
+    async def get_action(self, action_id: UUID) -> ActionModel:
+        action = await self.session.get_one(NoteAction, action_id)
+        return self.map_action(action)
+
+    async def add_action(
+        self,
+        note_id: UUID,
+        action_text: str,
+        status: ActionStatus = ActionStatus.done,
+    ):
+        action = NoteAction(note_id=note_id, action_text=action_text, status=status)
         self.session.add(action)
+        await self.session.flush([action])
+
+        return self.map_action(action)
+
+    async def set_status(self, action_id: UUID, status: ActionStatus) -> ActionModel:
+        action = await self.session.get_one(NoteAction, action_id)
+        action.status = status
         await self.session.flush([action])
 
         return self.map_action(action)

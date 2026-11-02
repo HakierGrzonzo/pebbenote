@@ -1,8 +1,9 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, Response, status
 
+from pebbenote.http_dates import is_modified_since, last_modified
 from pebbenote.notes.repository import NoteRepository
 from pebbenote.notes.schemas import NoteEditModel, NoteModel, NoteViewModel
 from pebbenote.notes.types import NoteId
@@ -18,11 +19,30 @@ async def list_notes(
     return await repository.list_notes()
 
 
-@note_router.get("/{note_id}")
+@note_router.get(
+    "/{note_id}",
+    response_model=NoteViewModel,
+    responses={status.HTTP_304_NOT_MODIFIED: {"description": "Not modified"}},
+)
 async def get_note_by_id(
-    view: Annotated[NoteView, Depends()], note_id: NoteId
-) -> NoteViewModel:
-    return await view.get_note_by_id(note_id)
+    view: Annotated[NoteView, Depends()],
+    note_id: NoteId,
+    response: Response,
+    if_modified_since: Annotated[str | None, Header()] = None,
+) -> NoteViewModel | Response:
+    note = await view.get_note_by_id(note_id)
+    updated_at = NoteView.updated_at(note)
+
+    headers = {
+        "Last-Modified": last_modified(updated_at),
+        # Clients may cache the note, but must revalidate it every time
+        "Cache-Control": "no-cache",
+    }
+    if not is_modified_since(updated_at, if_modified_since):
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
+
+    response.headers.update(headers)
+    return note
 
 
 @note_router.patch("/{note_id}")

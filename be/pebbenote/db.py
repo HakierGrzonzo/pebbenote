@@ -18,8 +18,12 @@ async_session = async_sessionmaker(async_engine, expire_on_commit=True)
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, Any]:
-    async with async_session() as session, session.begin():
+    # Commits explicitly instead of using session.begin(), so a route can
+    # commit early and keep using the session. An exception skips the commit
+    # and closing the session rolls back.
+    async with async_session() as session:
         yield session
+        await session.commit()
 
 
 @asynccontextmanager

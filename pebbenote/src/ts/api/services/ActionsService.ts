@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { ActionAcceptedModel } from "../models/ActionAcceptedModel";
 import type { ActionEditModel } from "../models/ActionEditModel";
 import type { NoteModel } from "../models/NoteModel";
 import type { CancelablePromise } from "../core/CancelablePromise";
@@ -12,11 +13,12 @@ export class ActionsService {
    * Apply Action
    * @param requestBody
    * @returns NoteModel Successful Response
+   * @returns ActionAcceptedModel Still applying, poll the note with If-Modified-Since
    * @throws ApiError
    */
   public applyAction(
     requestBody: ActionEditModel,
-  ): CancelablePromise<NoteModel> {
+  ): CancelablePromise<NoteModel | ActionAcceptedModel> {
     return this.httpRequest.request({
       method: "POST",
       url: "/action/",

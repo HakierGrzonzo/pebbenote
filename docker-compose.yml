@@ -19,6 +19,17 @@ services:
       retries: 5
       start_period: 2s
 
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 2s
+      timeout: 1s
+      retries: 5
+      start_period: 2s
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.6.1
     command: start-dev --import-realm
@@ -63,12 +74,45 @@ services:
       DECISION_MODEL: ${DECISION_MODEL:-nimble}
       OIDC_ISSUER: "http://localhost:8080/realms/pebbenote"
       OIDC_AUDIENCE: "pebbenote-be"
+      REDIS_URL: "redis://localhost:6379"
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: on-failure
     entrypoint: poetry run uvicorn pebbenote:app --host 0.0.0.0 --port 8000 --reload
 
+  worker:
+    build:
+      context: ./be
+    develop:
+      watch:
+        - action: sync
+          path: ./be/
+          target: /app
+          initial_sync: true
+        - action: rebuild
+          path: ./be/pyproject.toml
+    network_mode: host
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_HOST: localhost
+      OLLAMA_HOST: "localhost"
+      CHAT_MODEL: ${CHAT_MODEL:-gemma4:e2b}
+      DECISION_MODEL: ${DECISION_MODEL:-nimble}
+      OIDC_ISSUER: "http://localhost:8080/realms/pebbenote"
+      OIDC_AUDIENCE: "pebbenote-be"
+      REDIS_URL: "redis://localhost:6379"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: on-failure
+    entrypoint: poetry run taskiq worker pebbenote.worker:broker pebbenote.actions.tasks --reload
 
 volumes:
   app_data:

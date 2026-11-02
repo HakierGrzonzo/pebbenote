@@ -10,8 +10,10 @@ export { CancelablePromise, CancelError } from "./core/CancelablePromise";
 export { OpenAPI } from "./core/OpenAPI";
 export type { OpenAPIConfig } from "./core/OpenAPI";
 
+export type { ActionAcceptedModel } from "./models/ActionAcceptedModel";
 export type { ActionEditModel } from "./models/ActionEditModel";
 export type { ActionModel } from "./models/ActionModel";
+export { ActionStatus } from "./models/ActionStatus";
 export type { HTTPValidationError } from "./models/HTTPValidationError";
 export type { NoteEditModel } from "./models/NoteEditModel";
 export type { NoteModel } from "./models/NoteModel";

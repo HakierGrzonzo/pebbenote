@@ -1,4 +1,11 @@
-import { ActionEditModel, ApiError, AppClient } from "./api";
+import {
+  ActionAcceptedModel,
+  ActionEditModel,
+  ActionStatus,
+  ApiError,
+  AppClient,
+  NoteModel,
+} from "./api";
 import {
   NotSignedInError,
   getAccessToken,
@@ -61,6 +68,57 @@ async function refreshNote() {
     console.error("Failed to fetch note", String(e));
     sendFailure(e);
   }
+}
+
+// The backend answers 202 when the LLM takes too long, matching its Retry-After
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 3 * 60 * 1000;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function sendUpdatedNote(content: string) {
+  PebbleTS.sendAppMessage({ ...encodeNote(content), Vibe: 1 });
+}
+
+// Polls the note until the backend worker finishes the accepted action
+async function waitForAction(accepted: ActionAcceptedModel) {
+  const notes = makeClient().notes;
+  const actionId = accepted.action.note_action_id;
+  // Kept until the note changes, so the server can answer 304 meanwhile
+  const lastModified = accepted.note_last_modified;
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    await sleep(POLL_INTERVAL_MS);
+    let note;
+    try {
+      note = await notes.getNoteById(accepted.action.note_id, lastModified);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 304) continue;
+      console.error("Failed to poll the note", String(err));
+      sendFailure(err);
+      return;
+    }
+
+    const action = note.actions.find((a) => a.note_action_id === actionId);
+    if (action?.status === ActionStatus.DONE) {
+      sendUpdatedNote(note.content);
+      return;
+    }
+    if (action?.status === ActionStatus.FAILED) {
+      PebbleTS.sendAppMessage({ Status: "AI failed, try again" });
+      return;
+    }
+    // Something else changed the note, the action is still pending
+    PebbleTS.sendAppMessage({ ...encodeNote(note.content) });
+  }
+  PebbleTS.sendAppMessage({ Status: "AI is taking too long" });
+}
+
+function isAccepted(
+  response: NoteModel | ActionAcceptedModel,
+): response is ActionAcceptedModel {
+  return "note_last_modified" in response;
 }
 
 // Each index is relative to the note after the earlier deletes, like the watch applied them
@@ -191,13 +249,10 @@ Pebble.addEventListener("ready", async () => {
       sendFailure(err);
       return;
     }
-    const message = encodeNote(response.content);
-
-    console.log(message);
-
-    PebbleTS.sendAppMessage({
-      ...message,
-      Vibe: 1,
-    });
+    if (isAccepted(response)) {
+      await waitForAction(response);
+      return;
+    }
+    sendUpdatedNote(response.content);
   });
 });

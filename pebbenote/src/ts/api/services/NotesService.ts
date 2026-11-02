@@ -41,17 +41,25 @@ export class NotesService {
   /**
    * Get Note By Id
    * @param noteId
+   * @param ifModifiedSince
    * @returns NoteViewModel Successful Response
    * @throws ApiError
    */
-  public getNoteById(noteId: string): CancelablePromise<NoteViewModel> {
+  public getNoteById(
+    noteId: string,
+    ifModifiedSince?: string | null,
+  ): CancelablePromise<NoteViewModel> {
     return this.httpRequest.request({
       method: "GET",
       url: "/note/{note_id}",
       path: {
         note_id: noteId,
       },
+      headers: {
+        "if-modified-since": ifModifiedSince,
+      },
       errors: {
+        304: `Not modified`,
         422: `Validation Error`,
       },
     });

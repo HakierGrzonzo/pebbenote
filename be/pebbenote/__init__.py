@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,14 +11,27 @@ from .auth import get_current_user
 from .config import settings
 from .notes.exceptions import NoteDoesNotExist
 from .notes.router import note_router
+from .worker import broker
 
 logging.basicConfig(level=logging.INFO)
 
 
 is_local = settings.ENVIRONMENT == "local"
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # The worker process starts the broker on its own
+    if not broker.is_worker_process:
+        await broker.startup()
+    yield
+    if not broker.is_worker_process:
+        await broker.shutdown()
+
+
 app = FastAPI(
     title="PebbeNote",
+    lifespan=lifespan,
     docs_url="/docs" if is_local else None,
     redoc_url=None,
     openapi_url="/openapi.json" if is_local else None,

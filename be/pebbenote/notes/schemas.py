@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -9,6 +10,7 @@ class NoteModel(BaseModel):
     note_id: UUID
     content: str
     is_default: bool
+    updated_at: datetime
 
 
 class NoteEditModel(BaseModel):
