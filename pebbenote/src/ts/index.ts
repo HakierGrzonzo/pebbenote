@@ -5,6 +5,7 @@ import {
   ApiError,
   AppClient,
   NoteModel,
+  NoteViewModel,
 } from "./api";
 import {
   NotSignedInError,
@@ -90,14 +91,21 @@ async function waitForAction(accepted: ActionAcceptedModel) {
 
   while (Date.now() < deadline) {
     await sleep(POLL_INTERVAL_MS);
-    let note;
+    let note: NoteViewModel | ApiError;
     try {
       note = await notes.getNoteById(accepted.action.note_id, lastModified);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 304) continue;
-      console.error("Failed to poll the note", String(err));
-      sendFailure(err);
-      return;
+      if (err instanceof ApiError && err.status === 304) {
+        note = err;
+      } else {
+        console.error("Failed to poll the note", String(err));
+        sendFailure(err);
+        return;
+      }
+    }
+    if (note instanceof ApiError) {
+      // This is required cause `continue` in catch does not work?
+      continue;
     }
 
     const action = note.actions.find((a) => a.note_action_id === actionId);
