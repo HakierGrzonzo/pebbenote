@@ -7,6 +7,9 @@ from pebbenote_cli.errors import CliError
 
 USER_AGENT = "pebbenote-cli"
 
+# What the reverse proxy answers with when Keycloak and the backend are down
+UNAVAILABLE_STATUSES = {502, 503, 504}
+
 
 def request(method, url, *, data=None, form=None, token=None):
     headers = {"User-Agent": USER_AGENT}

@@ -5,7 +5,7 @@ import time
 
 from pebbenote_cli.config import TOKEN_FILE, Config
 from pebbenote_cli.errors import CliError
-from pebbenote_cli.http import request
+from pebbenote_cli.http import UNAVAILABLE_STATUSES, request
 
 CLIENT_ID = "pebbenote-watch"
 EXPIRY_MARGIN = 30
@@ -31,12 +31,21 @@ def save_tokens(token_response):
     return tokens
 
 
+def check_available(config: Config, status):
+    if status in UNAVAILABLE_STATUSES:
+        raise CliError(
+            f"Cannot reach {config.issuer} (HTTP {status}): "
+            "Keycloak and the backend seem to be down"
+        )
+
+
 def login(config: Config):
     status, device = request(
         "POST",
         f"{config.issuer}/protocol/openid-connect/auth/device",
         form={"client_id": CLIENT_ID},
     )
+    check_available(config, status)
     if status != 200:
         raise CliError(f"Device authorization failed: {device}")
     print(f"Sign in at: {device.get('verification_uri_complete')}", file=sys.stderr)
@@ -57,6 +66,7 @@ def login(config: Config):
         )
         if status == 200:
             return save_tokens(token)
+        check_available(config, status)
         error = (token or {}).get("error")
         if error == "authorization_pending":
             continue
@@ -79,6 +89,9 @@ def refresh(config: Config, tokens):
     )
     if status == 200:
         return save_tokens(token)
+    # Don't start a new login when the server is down, only when the refresh
+    # token was rejected
+    check_available(config, status)
     return login(config)
 
 

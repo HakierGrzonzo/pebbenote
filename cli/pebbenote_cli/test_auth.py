@@ -127,6 +127,14 @@ class AccessTokenTestCase(AuthTestCase):
         self.assertEqual(auth.access_token(CONFIG, force_refresh=True), "new-access")
         self.assertEqual(self.forms()[0]["grant_type"], "refresh_token")
 
+    def test_refresh_with_server_down_does_not_log_in(self):
+        self.store(expires_at=NOW - 1)
+        self.request.return_value = (502, None)
+
+        with self.assertRaisesRegex(CliError, "seem to be down"):
+            auth.access_token(CONFIG)
+        self.assertEqual(self.request.call_count, 1)
+
     def test_rejected_refresh_logs_in(self):
         self.store(expires_at=NOW - 1)
         self.request.side_effect = [
@@ -185,6 +193,23 @@ class LoginTestCase(AuthTestCase):
         self.request.return_value = (401, {"error": "unauthorized_client"})
 
         with self.assertRaises(CliError):
+            auth.login(CONFIG)
+
+    def test_device_endpoint_server_down(self):
+        self.request.return_value = (502, None)
+
+        with self.assertRaises(CliError) as ctx:
+            auth.login(CONFIG)
+        self.assertEqual(
+            str(ctx.exception),
+            "Cannot reach http://issuer (HTTP 502): "
+            "Keycloak and the backend seem to be down",
+        )
+
+    def test_token_endpoint_server_down(self):
+        self.request.side_effect = [(200, DEVICE), (503, None)]
+
+        with self.assertRaisesRegex(CliError, "seem to be down"):
             auth.login(CONFIG)
 
     def test_timeout(self):
