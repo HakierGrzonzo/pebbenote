@@ -45,9 +45,11 @@ def main():
     sub.add_parser("list", help="list notes").set_defaults(func=cmd_list)
     sub.add_parser("login", help="force a new login").set_defaults(func=cmd_login)
 
-    args = parser.parse_args()
-    if args.command is None:
-        args = parser.parse_args(["edit", *sys.argv[1:]])
+    argv = sys.argv[1:]
+    # `edit` is the default command: `pebbenote` and `pebbenote <note_id>`
+    if not argv or (argv[0] not in sub.choices and not argv[0].startswith("-")):
+        argv = ["edit", *argv]
+    args = parser.parse_args(argv)
     try:
         args.func(load_config(), args)
     except CliError as e:
