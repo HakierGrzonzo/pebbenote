@@ -1,6 +1,6 @@
 # Pebbenote CLI
 
-Opens a note in `$EDITOR` and syncs it with the backend when the editor quits. Python 3.13+, stdlib only, packaged with Poetry.
+Opens a note in `$EDITOR` and syncs it with the backend when the editor quits. Python 3.13+, packaged with Poetry. Talks to the backend through a client generated from its OpenAPI schema.
 
 ## Install
 
@@ -39,3 +39,11 @@ issuer = "https://auth.grzegorzkoperwas.site/realms/pebbenote"
 Edit it to point at another backend, e.g. `http://localhost:8000` and `http://localhost:8080/realms/pebbenote` for local development. The editor comes from `$EDITOR`, then `$VISUAL`, then `vi`.
 
 Login uses the Keycloak device flow. Tokens are stored in `$XDG_STATE_HOME/pebbenote/tokens.json` (default `~/.local/state/pebbenote/tokens.json`).
+
+## Regenerating the API client
+
+`pebbenote_cli/client/` is generated with [openapi-python-client](https://github.com/openapi-generators/openapi-python-client) from a locally running backend (`ENVIRONMENT=local`, which serves `/openapi.json`). Don't edit it by hand; after changing the backend API run:
+
+```sh
+./generate_client.sh   # uses http://localhost:8000/openapi.json, override with OPENAPI_URL
+```

@@ -4,29 +4,36 @@ import argparse
 import sys
 
 from pebbenote_cli import api, auth
+from pebbenote_cli.client.api.notes import edit_note_by_id, get_note_by_id, list_notes
+from pebbenote_cli.client.models import NoteEditModel
 from pebbenote_cli.config import load_config
 from pebbenote_cli.editor import edit_text
 from pebbenote_cli.errors import CliError
 
 
 def cmd_edit(config, args):
-    note = api.call(config, "GET", f"/note/{args.note_id}")
+    note = api.call(config, get_note_by_id, note_id=args.note_id)
     if not sys.stdout.isatty():
-        sys.stdout.write(note["content"])
+        sys.stdout.write(note.content)
         return
-    edited = edit_text(note["content"])
-    if edited == note["content"]:
+    edited = edit_text(note.content)
+    if edited == note.content:
         print("No changes; nothing to sync.", file=sys.stderr)
         return
-    api.call(config, "PATCH", f"/note/{args.note_id}", {"content": edited})
+    api.call(
+        config,
+        edit_note_by_id,
+        note_id=args.note_id,
+        body=NoteEditModel(content=edited),
+    )
     print("Note synced.", file=sys.stderr)
 
 
 def cmd_list(config, _args):
-    for note in api.call(config, "GET", "/note/"):
-        marker = "*" if note["is_default"] else " "
-        first_line = note["content"].splitlines()[0] if note["content"] else ""
-        print(f"{marker} {note['note_id']}  {first_line}")
+    for note in api.call(config, list_notes):
+        marker = "*" if note.is_default else " "
+        first_line = note.content.splitlines()[0] if note.content else ""
+        print(f"{marker} {note.note_id}  {first_line}")
 
 
 def cmd_login(config, _args):
@@ -45,9 +52,11 @@ def main():
     sub.add_parser("list", help="list notes").set_defaults(func=cmd_list)
     sub.add_parser("login", help="force a new login").set_defaults(func=cmd_login)
 
-    args = parser.parse_args()
-    if args.command is None:
-        args = parser.parse_args(["edit", *sys.argv[1:]])
+    argv = sys.argv[1:]
+    # `edit` is the default command: `pebbenote` and `pebbenote <note_id>`
+    if not argv or (argv[0] not in sub.choices and not argv[0].startswith("-")):
+        argv = ["edit", *argv]
+    args = parser.parse_args(argv)
     try:
         args.func(load_config(), args)
     except CliError as e:

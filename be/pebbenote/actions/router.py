@@ -41,7 +41,7 @@ async def apply_action(
     # The worker uses its own connection, so the action must be visible first
     await session.commit()
 
-    task = await apply_action_task.kiq(str(action.note_action_id), user)
+    task = await apply_action_task.kiq(action_id=str(action.note_action_id), owner=user)
     try:
         result = await task.wait_result(timeout=settings.ACTION_WAIT_SECONDS)
         if not result.is_err:

@@ -9,15 +9,22 @@ packages = [{ include = "pebbenote_cli" }]
 
 [tool.poetry.dependencies]
 python = "^3.13"
+httpx = "^0.28.1"
+attrs = "^26.1.0"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.14.3"
+openapi-python-client = "^0.29.1"
 
 [tool.poetry.scripts]
 pebbenote = "pebbenote_cli.cli:main"
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# Generated docstrings and messages are not wrapped
+"pebbenote_cli/client/**" = ["E501"]
 
 [build-system]
 requires = ["poetry-core"]
