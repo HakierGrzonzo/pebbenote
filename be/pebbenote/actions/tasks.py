@@ -1,20 +1,30 @@
 from logging import getLogger
+from typing import Annotated
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncSession
 from taskiq import Context, TaskiqDepends
 
 from pebbenote.actions.action_service import NoteActionService
 from pebbenote.actions.repository import NoteActionRepository
+from pebbenote.auth import get_current_user
 from pebbenote.config import settings
-from pebbenote.db import async_session
-from pebbenote.instructions.repository import UserInstructionRepository
-from pebbenote.llm import ai_provider
-from pebbenote.notes.repository import NoteRepository
+from pebbenote.db import get_db
 from pebbenote.notes.schemas import NoteModel
 from pebbenote.tables import ActionStatus
 from pebbenote.worker import broker
 
 logger = getLogger(__name__)
+
+
+def task_owner(context: Annotated[Context, TaskiqDepends()]) -> str:
+    """Stands in for get_current_user, the API passes the owner along"""
+    return context.message.kwargs["owner"]
+
+
+# taskiq resolves the FastAPI Depends of the service and repositories, only
+# the user has to come from the task instead of a bearer token
+broker.dependency_overrides[get_current_user] = task_owner
 
 
 def is_last_attempt(context: Context) -> bool:
@@ -27,23 +37,20 @@ def is_last_attempt(context: Context) -> bool:
 
 @broker.task(retry_on_error=True, max_retries=settings.ACTION_MAX_RETRIES)
 async def apply_action_task(
-    action_id: str, owner: str, context: Context = TaskiqDepends()
+    action_id: str,
+    owner: str,
+    context: Annotated[Context, TaskiqDepends()],
+    session: Annotated[AsyncSession, TaskiqDepends(get_db)],
+    service: Annotated[NoteActionService, TaskiqDepends()],
+    actions: Annotated[NoteActionRepository, TaskiqDepends()],
 ) -> NoteModel:
     try:
-        # There is no request here, so the repositories get the owner directly
-        async with async_session() as session, session.begin():
-            service = NoteActionService(
-                NoteActionRepository(session),
-                NoteRepository(session, owner),
-                UserInstructionRepository(session, owner),
-                ai_provider(),
-            )
-            return await service.apply_action(UUID(action_id))
+        return await service.apply_action(UUID(action_id))
     except Exception:
         if is_last_attempt(context):
             logger.exception("Giving up on action %s", action_id)
-            async with async_session() as session, session.begin():
-                await NoteActionRepository(session).set_status(
-                    UUID(action_id), ActionStatus.failed
-                )
+            # Drop the failed attempt's writes, then record the failure
+            await session.rollback()
+            await actions.set_status(UUID(action_id), ActionStatus.failed)
+            await session.commit()
         raise
