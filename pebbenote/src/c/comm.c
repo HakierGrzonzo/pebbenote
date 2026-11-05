@@ -39,6 +39,34 @@ static void send_dictation(char *transcription) {
 static uint8_t s_pending_deletes[MAX_MESSAGES];
 static uint8_t s_pending_count;
 static AppTimer *s_delete_timer;
+// A batch was sent and the phone hasn't replied with the updated note yet
+static bool s_delete_in_flight;
+
+// Give up waiting for the phone after this long and exit anyway
+#define EXIT_TIMEOUT_MS 5000
+
+static bool s_exit_requested;
+static AppTimer *s_exit_timer;
+
+static void exit_app(void) {
+  if (s_exit_timer != NULL) {
+    app_timer_cancel(s_exit_timer);
+    s_exit_timer = NULL;
+  }
+  window_stack_pop_all(true);
+}
+
+static void exit_timeout(void *context) {
+  s_exit_timer = NULL;
+  APP_LOG(APP_LOG_LEVEL_WARNING, "Phone didn't confirm the deletes, exiting anyway");
+  exit_app();
+}
+
+static void finish_exit_if_requested(void) {
+  if (s_exit_requested) {
+    exit_app();
+  }
+}
 
 static void send_pending_deletes(void *context) {
   s_delete_timer = NULL;
@@ -53,6 +81,7 @@ static void send_pending_deletes(void *context) {
   if (result != APP_MSG_OK) {
     APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to app_message_outbox_begin");
     display_text("Failed to reach phone");
+    finish_exit_if_requested();
     return;
   }
   dict_write_data(out_iter, MESSAGE_KEY_DeleteLine, s_pending_deletes, count);
@@ -62,7 +91,27 @@ static void send_pending_deletes(void *context) {
   if (result != APP_MSG_OK) {
     APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to send the delete message");
     display_text("Failed to reach phone");
+    finish_exit_if_requested();
+    return;
   }
+  s_delete_in_flight = true;
+}
+
+bool comm_is_exiting(void) { return s_exit_requested; }
+
+void comm_flush_and_exit(void) {
+  if (s_pending_count == 0 && !s_delete_in_flight) {
+    window_stack_pop_all(true);
+    return;
+  }
+
+  s_exit_requested = true;
+  display_text("Saving...");
+  s_exit_timer = app_timer_register(EXIT_TIMEOUT_MS, exit_timeout, NULL);
+  if (s_delete_timer != NULL) {
+    app_timer_cancel(s_delete_timer);
+  }
+  send_pending_deletes(NULL);
 }
 
 void queue_delete_line(uint8_t index) {
@@ -76,7 +125,7 @@ void queue_delete_line(uint8_t index) {
 
 bool comm_sign_in_required(void) { return s_sign_in_required; }
 
-static void inbox_received_handler(DictionaryIterator *iter, void *context) {
+static void handle_inbox(DictionaryIterator *iter) {
   Tuple *number_on_lines = dict_find(iter, MESSAGE_KEY_NumberOfLines);
 
   s_sign_in_required = dict_find(iter, MESSAGE_KEY_SignInRequired) != NULL;
@@ -159,6 +208,15 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
 }
 
+static void inbox_received_handler(DictionaryIterator *iter, void *context) {
+  handle_inbox(iter);
+  // With no batch queued, any reply (fresh note, status or sign in) answers the sent batch
+  if (s_pending_count == 0) {
+    s_delete_in_flight = false;
+    finish_exit_if_requested();
+  }
+}
+
 static void inbox_dropped_handler(AppMessageResult reason, void *context) {
   APP_LOG(APP_LOG_LEVEL_ERROR, "Inbox message dropped: %d", (int)reason);
 }
@@ -167,6 +225,8 @@ static void outbox_failed_handler(DictionaryIterator *iter, AppMessageResult rea
                                   void *context) {
   APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox message failed: %d", (int)reason);
   display_text("Failed to reach phone");
+  s_delete_in_flight = false;
+  finish_exit_if_requested();
 }
 
 /******************************* Dictation API ********************************/

@@ -46,7 +46,17 @@ static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
   scroll_to_selected_note();
 }
 
+static void back_click_handler(ClickRecognizerRef recognizer, void *context) {
+  // A second press skips waiting for the phone
+  if (comm_is_exiting()) {
+    window_stack_pop_all(true);
+    return;
+  }
+  comm_flush_and_exit();
+}
+
 void input_click_config_provider(void *context) {
+  window_single_click_subscribe(BUTTON_ID_BACK, back_click_handler);
   window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
   window_long_click_subscribe(BUTTON_ID_SELECT, 500, select_long_click_handler, NULL);
   window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 300, down_click_handler);
