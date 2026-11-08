@@ -94,7 +94,9 @@ class AccessTokenTestCase(AuthTestCase):
         self.request.side_effect = [(200, DEVICE), (200, token_response())]
 
         self.assertEqual(auth.access_token(CONFIG), "new-access")
-        self.assertEqual(self.forms()[0], {"client_id": auth.CLIENT_ID})
+        self.assertEqual(
+            self.forms()[0], {"client_id": auth.CLIENT_ID, "scope": auth.SCOPE}
+        )
 
     def test_expiring_token_is_refreshed(self):
         self.store(expires_at=NOW + auth.EXPIRY_MARGIN)
@@ -118,7 +120,9 @@ class AccessTokenTestCase(AuthTestCase):
         self.request.side_effect = [(200, DEVICE), (200, token_response())]
 
         self.assertEqual(auth.access_token(CONFIG), "new-access")
-        self.assertEqual(self.forms()[0], {"client_id": auth.CLIENT_ID})
+        self.assertEqual(
+            self.forms()[0], {"client_id": auth.CLIENT_ID, "scope": auth.SCOPE}
+        )
 
     def test_force_refresh(self):
         self.store()
@@ -144,7 +148,9 @@ class AccessTokenTestCase(AuthTestCase):
         ]
 
         self.assertEqual(auth.access_token(CONFIG), "new-access")
-        self.assertEqual(self.forms()[1], {"client_id": auth.CLIENT_ID})
+        self.assertEqual(
+            self.forms()[1], {"client_id": auth.CLIENT_ID, "scope": auth.SCOPE}
+        )
 
 
 class LoginTestCase(AuthTestCase):

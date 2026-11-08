@@ -9,6 +9,8 @@ from pebbenote_cli.http import UNAVAILABLE_STATUSES, request
 
 CLIENT_ID = "pebbenote-watch"
 EXPIRY_MARGIN = 30
+# Offline tokens outlive the 30 minute Keycloak SSO session idle timeout
+SCOPE = "openid offline_access"
 
 
 def load_tokens():
@@ -43,7 +45,7 @@ def login(config: Config):
     status, device = request(
         "POST",
         f"{config.issuer}/protocol/openid-connect/auth/device",
-        form={"client_id": CLIENT_ID},
+        form={"client_id": CLIENT_ID, "scope": SCOPE},
     )
     check_available(config, status)
     if status != 200:

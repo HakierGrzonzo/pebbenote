@@ -3,6 +3,8 @@ import { ISSUER } from "./env";
 
 const CLIENT_ID = "pebbenote-watch";
 const OIDC = `${ISSUER}/protocol/openid-connect`;
+// Offline tokens outlive the 30 minute Keycloak SSO session idle timeout
+const SCOPE = "openid offline_access";
 
 const ACCESS_KEY = "accessToken";
 const REFRESH_KEY = "refreshToken";
@@ -76,11 +78,24 @@ export function isSignedIn(): boolean {
   return !!localStorage.getItem(REFRESH_KEY);
 }
 
-export async function getAccessToken(): Promise<string> {
+// Refresh tokens are single use, so parallel requests must share one refresh
+let refreshing: Promise<string> | null = null;
+
+export function getAccessToken(): Promise<string> {
   const access = localStorage.getItem(ACCESS_KEY);
   const expiresAt = Number(localStorage.getItem(EXPIRES_KEY));
-  if (access && Date.now() < expiresAt - EXPIRY_MARGIN_MS) return access;
+  if (access && Date.now() < expiresAt - EXPIRY_MARGIN_MS) {
+    return Promise.resolve(access);
+  }
+  if (!refreshing) {
+    refreshing = refreshAccessToken().finally(() => {
+      refreshing = null;
+    });
+  }
+  return refreshing;
+}
 
+async function refreshAccessToken(): Promise<string> {
   const refresh = localStorage.getItem(REFRESH_KEY);
   if (!refresh) throw new NotSignedInError();
 
@@ -107,6 +122,7 @@ export async function getAccessToken(): Promise<string> {
 export async function startDeviceFlow(): Promise<DeviceFlow> {
   const { status, body } = await postForm<DeviceFlow>(`${OIDC}/auth/device`, {
     client_id: CLIENT_ID,
+    scope: SCOPE,
   });
   if (status !== 200) throw new Error(`Device flow failed: ${status}`);
   return body;
