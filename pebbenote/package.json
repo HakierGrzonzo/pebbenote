@@ -65,5 +65,11 @@
     "openapi": "openapi --input http://localhost:8000/openapi.json --output src/ts/api --client xhr --name AppClient --request ./request-template.ts && npm run format",
     "build:prod": "node scripts/use-env.mjs prod && pebble build",
     "build:dev": "node scripts/use-env.mjs dev && pebble build"
+  },
+  "overrides": {
+    "@rollup/plugin-terser": "^1.0.2",
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "^11.0.1"
+    }
   }
 }
