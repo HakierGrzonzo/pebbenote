@@ -48,13 +48,13 @@ class NoteActionRepository:
     ):
         action = NoteAction(note_id=note_id, action_text=action_text, status=status)
         self.session.add(action)
-        await self.session.flush([action])
+        await self.session.flush()
 
         return self.map_action(action)
 
     async def set_status(self, action_id: UUID, status: ActionStatus) -> ActionModel:
         action = await self.session.get_one(NoteAction, action_id)
         action.status = status
-        await self.session.flush([action])
+        await self.session.flush()
 
         return self.map_action(action)

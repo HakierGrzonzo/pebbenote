@@ -1,8 +1,7 @@
-from typing import cast
 from uuid import UUID
 
 from sqlalchemy import Select, desc, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql import distinct_on, insert
 
 from pebbenote.auth import CurrentUser
 from pebbenote.db import DbSession
@@ -35,7 +34,7 @@ class NoteRepository:
         """The user's notes with their latest revision, which holds the content"""
         latest_revision_id = (
             Select(NoteRevision.note_id, NoteRevision.note_revision_id)
-            .distinct(NoteRevision.note_id)
+            .ext(distinct_on(NoteRevision.note_id))
             .order_by(NoteRevision.note_id, desc(NoteRevision.created_at))
             .cte("latest_revision_id")
         )
@@ -63,7 +62,7 @@ class NoteRepository:
 
         results = await self.session.execute(query)
 
-        return [self.map_note(note, revision) for note, revision in results.tuples()]
+        return [self.map_note(note, revision) for note, revision in results]
 
     async def _add_revision(
         self, note: Note, text: str, action_id: UUID | None = None
@@ -74,7 +73,7 @@ class NoteRepository:
         self.session.add(revision)
         # The note row itself is unchanged, bump it for Last-Modified
         note.updated_at = utc_now()
-        await self.session.flush([note, revision])
+        await self.session.flush()
         return revision
 
     async def _create_default_note(self) -> None:
@@ -93,7 +92,7 @@ class NoteRepository:
         if note_id is not None:
             revision = NoteRevision(note_id=note_id, note_text=DEFAULT_NOTE_TEXT)
             self.session.add(revision)
-            await self.session.flush([revision])
+            await self.session.flush()
 
     async def _raw_get_note_by_id(
         self, note_id: NoteId, for_update: bool = False
@@ -109,17 +108,18 @@ class NoteRepository:
                 populate_existing=True
             )
 
-        row = (await self.session.execute(query)).tuples().one_or_none()
+        row = (await self.session.execute(query)).one_or_none()
 
         if row is None and note_id == "default":
             # The user's first visit
             await self._create_default_note()
-            row = (await self.session.execute(query)).tuples().one()
+            row = (await self.session.execute(query)).one()
 
         if row is None:
             raise NoteDoesNotExist(note_id)
 
-        return row
+        note, revision = row
+        return note, revision
 
     async def get_note_by_id(self, note_id: NoteId, for_update: bool = False):
         note, revision = await self._raw_get_note_by_id(note_id, for_update)
@@ -147,7 +147,7 @@ class NoteRepository:
     async def create_note(self, note_model: NoteEditModel) -> NoteModel:
         note = Note(owner=self.user)
         self.session.add(note)
-        await self.session.flush([note])
+        await self.session.flush()
         revision = await self._add_revision(note, note_model.content.strip())
 
         return self.map_note(note, revision)
@@ -165,7 +165,7 @@ class NoteRepository:
                 .values(is_default=False)
             )
             note.is_default = True
-            await self.session.flush([note])
+            await self.session.flush()
 
         return self.map_note(note, revision)
 
@@ -182,10 +182,7 @@ class NoteRepository:
             .limit(limit)
         )
 
-        rows = cast(
-            list[tuple[NoteRevision, str | None]],
-            (await self.session.execute(query)).tuples().all(),
-        )
+        rows = (await self.session.execute(query)).all()
 
         return [
             NoteRevisionModel(

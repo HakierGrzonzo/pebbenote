@@ -30,6 +30,6 @@ class UserInstructionRepository:
             owner=self.user, instruction_text=instruction_text
         )
         self.session.add(instruction)
-        await self.session.flush([instruction])
+        await self.session.flush()
 
         return instruction.instruction_text
