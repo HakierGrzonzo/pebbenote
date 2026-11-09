@@ -54,6 +54,9 @@ run `npm run build:prod` (or `npm run use-env prod`) before committing. Override
 the urls for a one-off build with `PEBBENOTE_BACKEND_URL` / `PEBBENOTE_ISSUER`.
 `localhost` only works in the emulator; a real phone needs an `https://` url.
 
+`pebbenote/scripts/screenshots.sh [platform...]` retakes the screenshots in
+`pebbenote/screenshots/` on the emulators, signed in to the local stack as `dev`.
+
 ### Git hooks
 
 Linting and formatting (`ruff` for `./be`, `eslint` and `prettier` for the watchapp's TS,
