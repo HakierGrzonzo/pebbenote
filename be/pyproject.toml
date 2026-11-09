@@ -9,7 +9,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.13"
 ollama = "^0.6.3"
-fastapi = "^0.120.4"
+fastapi = "^0.162.2"
 pydantic = "^2.12.3"
 sqlalchemy = {extras = ["asyncio"], version = "^2.0.44"}
 asyncpg = "^0.30.0"
