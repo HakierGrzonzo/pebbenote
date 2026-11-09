@@ -56,6 +56,9 @@ the urls for a one-off build with `PEBBENOTE_BACKEND_URL` / `PEBBENOTE_ISSUER`.
 
 `pebbenote/scripts/screenshots.sh [platform...]` retakes the screenshots in
 `pebbenote/screenshots/` on the emulators, signed in to the local stack as `dev`.
+`pebbenote/scripts/publish.sh "<release notes>"` publishes a live release to the
+Rebble appstore with those screenshots replacing the store's (needs
+`pebble login` and a version bump in `pebbenote/package.json`).
 
 ### Git hooks
 

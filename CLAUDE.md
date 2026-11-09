@@ -72,5 +72,7 @@ Use a throwaway user for these tests, so the developer's own notes stay intact.
 Watchapp screenshots: `pebbenote/scripts/screenshots.sh [platform...]` (signs the
 emulators in as `dev` with `keycloak/approve-device.sh`, about a minute per
 platform), then look at each PNG in `pebbenote/screenshots/`.
+`pebbenote/scripts/publish.sh "<release notes>"` publishes them to the store, as
+part of a release that goes live at once (bump the version first).
 Local Postgres is at `127.0.0.1:5432`, password `postgres`
 (`PGPASSWORD=postgres psql -h 127.0.0.1 -U postgres`).
