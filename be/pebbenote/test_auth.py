@@ -1,13 +1,14 @@
 import time
 from types import SimpleNamespace
-from unittest import IsolatedAsyncioTestCase
+from unittest import IsolatedAsyncioTestCase, TestCase
+from unittest.mock import patch
 
 import jwt
 from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
-from .auth import get_current_user
+from .auth import get_current_user, get_jwk_client
 from .config import settings
 
 
@@ -74,3 +75,21 @@ class GetCurrentUserTestCase(IsolatedAsyncioTestCase):
 
     async def test_bad_signature(self):
         await self.assert_rejected(self.token(key=make_key()))
+
+
+class GetJwkClientTestCase(TestCase):
+    def setUp(self) -> None:
+        get_jwk_client.cache_clear()
+        self.addCleanup(get_jwk_client.cache_clear)
+
+    def test_defaults_to_issuer_certs(self):
+        with patch.object(settings, "OIDC_JWKS_URL", None):
+            self.assertEqual(
+                get_jwk_client().uri,
+                f"{settings.OIDC_ISSUER}/protocol/openid-connect/certs",
+            )
+
+    def test_uses_jwks_url_when_set(self):
+        url = "http://keycloak:8080/realms/pebbenote/protocol/openid-connect/certs"
+        with patch.object(settings, "OIDC_JWKS_URL", url):
+            self.assertEqual(get_jwk_client().uri, url)

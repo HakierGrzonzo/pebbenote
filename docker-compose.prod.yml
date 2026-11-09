@@ -1,0 +1,98 @@
+# Prod stack. Settings come from an env file, see .env.prod.example:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# db and redis are only reachable on the compose network.
+
+x-be-env: &be-env
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+  POSTGRES_DB: postgres
+  POSTGRES_HOST: db
+  REDIS_URL: "redis://redis:6379"
+  OLLAMA_HOST: ${OLLAMA_HOST:?}
+  CHAT_MODEL: ${CHAT_MODEL:?}
+  DECISION_MODEL: ${DECISION_MODEL:?}
+  OIDC_ISSUER: ${OIDC_ISSUER:?}
+  OIDC_JWKS_URL: ${OIDC_JWKS_URL:-http://keycloak:8080/realms/pebbenote/protocol/openid-connect/certs}
+  OIDC_AUDIENCE: "pebbenote-be"
+
+services:
+  db:
+    image: postgres:17
+    volumes:
+      - app_data:/var/lib/postgresql/data
+      # Only runs when the data volume is first created
+      - ./keycloak/init-db.sql:/docker-entrypoint-initdb.d/init-keycloak-db.sql:ro
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+      PGUSER: postgres
+    restart: always
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready", "-d", "postgres" ]
+      interval: 2s
+      timeout: 1s
+      retries: 5
+      start_period: 2s
+
+  redis:
+    image: redis:7
+    restart: always
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 2s
+      timeout: 1s
+      retries: 5
+      start_period: 2s
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6.1
+    command: start-dev --import-realm
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak/pebbenote-realm.json:/opt/keycloak/data/import/pebbenote-realm.json:ro
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: db
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: postgres
+      KC_DB_PASSWORD: postgres
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: on-failure
+
+  be:
+    build:
+      context: ./be
+    environment: *be-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    ports:
+      - "${BE_PORT:-8001}:8000"
+    entrypoint: poetry run uvicorn pebbenote:app --host 0.0.0.0 --port 8000
+
+  worker:
+    build:
+      context: ./be
+    environment: *be-env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    entrypoint: poetry run taskiq worker pebbenote.worker:broker pebbenote.actions.tasks
+
+volumes:
+  app_data:
+    driver: local

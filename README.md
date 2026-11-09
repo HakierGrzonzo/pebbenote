@@ -69,3 +69,14 @@ then run `pre-commit install` once in the repo root. Use `pre-commit run --all-f
 to check everything.
 
 Refer to `pebble sdk` docs for further instructions.
+
+## Production
+
+`docker-compose.prod.yml` runs the stack on the compose network, with no db or
+redis ports published. It is configured from an env file:
+
+```bash
+cp .env.prod.example .env.prod   # then fill in the values
+docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+docker compose -f docker-compose.prod.yml --env-file .env.prod exec be poetry run alembic upgrade head
+```

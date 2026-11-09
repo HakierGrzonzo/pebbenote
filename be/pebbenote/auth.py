@@ -25,7 +25,10 @@ def _unauthorized() -> HTTPException:
 @lru_cache
 def get_jwk_client() -> PyJWKClient:
     # PyJWKClient caches the fetched keys
-    return PyJWKClient(f"{settings.OIDC_ISSUER}/protocol/openid-connect/certs")
+    return PyJWKClient(
+        settings.OIDC_JWKS_URL
+        or f"{settings.OIDC_ISSUER}/protocol/openid-connect/certs"
+    )
 
 
 async def get_current_user(

@@ -20,6 +20,9 @@ class AppSettings(BaseSettings):
 
     OIDC_ISSUER: str = "http://localhost:8080/realms/pebbenote"
     OIDC_AUDIENCE: str = "pebbenote-be"
+    # Where to fetch the signing keys, when the issuer URL isn't reachable from
+    # the backend (in prod Keycloak is reached over the compose network)
+    OIDC_JWKS_URL: str | None = None
 
     ENVIRONMENT: EnvironmentKinds = "local"
 
