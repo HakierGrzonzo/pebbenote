@@ -31,8 +31,15 @@ is represented as:
   ]}
 ]}
 
-Below is the note you are going to modify:
+Below is the history of the note: the starting note, then each change as a
+unified diff, either asked for by the user and made by you, or made by the user
+by hand. It ends with the current note. When the user asks to undo or revert
+something, use the diffs to find what changed.
 """.strip()
+
+manual_edit_prefix = "I edited the note myself:"
+
+note_now_prefix = "The note is now:"
 
 apply_action_preamble = """
 Below are the users instructions on what to add/remove/modify in the note. Find 

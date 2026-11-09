@@ -27,6 +27,8 @@ class AppSettings(BaseSettings):
     # How long POST /action/ waits for the LLM before answering 202 Accepted
     ACTION_WAIT_SECONDS: float = 10
     ACTION_MAX_RETRIES: int = 3
+    # How many past revisions of the note the LLM sees, for undo and context
+    HISTORY_REVISIONS: int = 10
 
 
 settings = AppSettings()

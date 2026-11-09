@@ -5,6 +5,7 @@ from fastapi import Depends
 
 from pebbenote.actions.repository import NoteActionRepository
 from pebbenote.actions.schemas import ActionEditModel, ActionModel
+from pebbenote.config import settings
 from pebbenote.instructions.repository import UserInstructionRepository
 from pebbenote.llm import ai_provider
 from pebbenote.llm.base import AIAdapter
@@ -13,6 +14,7 @@ from pebbenote.notes.repository import NoteRepository
 from pebbenote.notes.schemas import NoteEditModel, NoteModel
 from pebbenote.tables import ActionStatus
 
+from .history import build_history
 from .prompts import (
     apply_action_preamble,
     apply_action_system_prompt,
@@ -67,10 +69,13 @@ class NoteActionService:
             preamble, user_message = apply_action_preamble, action.action
 
         instructions = await self.instruction_repository.list_instructions()
+        revisions = await self.note_repository.list_revisions(
+            note.note_id, settings.HISTORY_REVISIONS
+        )
 
         messages = [
             Message(kind="system", content=apply_action_system_prompt),
-            Message(kind="user", content=note.content),
+            *build_history(revisions),
         ]
         if instructions:
             bullets = "\n".join(f"- {instruction}" for instruction in instructions)
@@ -90,5 +95,5 @@ class NoteActionService:
             action.note_action_id, ActionStatus.done
         )
         return await self.note_repository.update_note(
-            note.note_id, NoteEditModel(content=response)
+            note.note_id, NoteEditModel(content=response), action.note_action_id
         )

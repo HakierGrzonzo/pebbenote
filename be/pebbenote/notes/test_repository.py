@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from pebbenote.db import get_test_db
 from pebbenote.notes.schemas import NoteEditModel
 
-from ..tables import Note
+from ..tables import Note, NoteAction, NoteRevision
 from .exceptions import NoteDoesNotExist
 from .repository import DEFAULT_NOTE_TEXT, NoteRepository
 
@@ -27,10 +27,16 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         self.session.add_all(
             [
                 Note(
-                    note_text="Some text",
                     owner=self.user if i < NUMBER_OF_NOTES else "Someone else",
                     note_id=uuid_gen["note", i],
                 )
+                for i in range(NUMBER_OF_NOTES * 2)
+            ]
+        )
+        await self.session.flush()
+        self.session.add_all(
+            [
+                NoteRevision(note_id=uuid_gen["note", i], note_text="Some text")
                 for i in range(NUMBER_OF_NOTES * 2)
             ]
         )
@@ -105,7 +111,7 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
 
     async def test_second_default_rejected(self):
         await self.repository.get_note_by_id("default")
-        self.session.add(Note(note_text="", owner=self.user, is_default=True))
+        self.session.add(Note(owner=self.user, is_default=True))
         with self.assertRaises(IntegrityError):
             await self.session.flush()
 
@@ -138,3 +144,83 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         )
 
         self.assertGreater(after.updated_at, before.updated_at)
+
+    async def revisions(self, note_id=uuid_gen["note", 0]):
+        return await self.repository.list_revisions(note_id, limit=100)
+
+    async def test_content_is_latest_revision(self):
+        await self.repository.update_note(
+            uuid_gen["note", 0], NoteEditModel(content="First")
+        )
+        await self.repository.update_note(
+            uuid_gen["note", 0], NoteEditModel(content="Second")
+        )
+
+        note = await self.repository.get_note_by_id(uuid_gen["note", 0])
+        listed = {n.note_id: n for n in await self.repository.list_notes()}
+
+        self.assertEqual(note.content, "Second")
+        self.assertEqual(listed[uuid_gen["note", 0]].content, "Second")
+        self.assertEqual(listed[uuid_gen["note", 1]].content, "Some text")
+
+    async def test_update_adds_revision(self):
+        await self.repository.update_note(
+            uuid_gen["note", 0], NoteEditModel(content="Edited")
+        )
+
+        revisions = await self.revisions()
+
+        self.assertEqual([r.content for r in revisions], ["Some text", "Edited"])
+        self.assertIsNone(revisions[-1].action)
+
+    async def test_unchanged_manual_edit_adds_no_revision(self):
+        await self.repository.update_note(
+            uuid_gen["note", 0], NoteEditModel(content="Some text\n")
+        )
+
+        self.assertEqual(len(await self.revisions()), 1)
+
+    async def test_action_edit_links_action(self):
+        action = NoteAction(note_id=uuid_gen["note", 0], action_text="keep it")
+        self.session.add(action)
+        await self.session.flush()
+
+        # Even an unchanged note is stored, so every done action has a revision
+        await self.repository.update_note(
+            uuid_gen["note", 0],
+            NoteEditModel(content="Some text"),
+            action.note_action_id,
+        )
+
+        revisions = await self.revisions()
+        self.assertEqual(len(revisions), 2)
+        self.assertEqual(revisions[-1].action, "keep it")
+
+    async def test_create_and_default_have_first_revision(self):
+        created = await self.repository.create_note(NoteEditModel(content="New"))
+        default = await self.repository.get_note_by_id("default")
+
+        self.assertEqual(
+            [r.content for r in await self.revisions(created.note_id)], ["New"]
+        )
+        self.assertEqual(
+            [r.content for r in await self.revisions("default")], [DEFAULT_NOTE_TEXT]
+        )
+        self.assertEqual(default.content, DEFAULT_NOTE_TEXT)
+
+    async def test_list_revisions_keeps_latest(self):
+        for i in range(5):
+            await self.repository.update_note(
+                uuid_gen["note", 0], NoteEditModel(content=f"Edit {i}")
+            )
+
+        revisions = await self.repository.list_revisions(uuid_gen["note", 0], 2)
+
+        self.assertEqual([r.content for r in revisions], ["Edit 3", "Edit 4"])
+
+    async def test_get_for_update(self):
+        note = await self.repository.get_note_by_id(
+            uuid_gen["note", 0], for_update=True
+        )
+
+        self.assertEqual(note.content, "Some text")

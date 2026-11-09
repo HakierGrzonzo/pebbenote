@@ -19,3 +19,12 @@ class NoteEditModel(BaseModel):
 
 class NoteViewModel(NoteModel):
     actions: list[ActionModel]
+
+
+class NoteRevisionModel(BaseModel):
+    note_revision_id: UUID
+    note_id: UUID
+    content: str
+    # The dictated action that made this revision, None for edits by hand
+    action: str | None
+    created_at: datetime

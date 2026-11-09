@@ -5,6 +5,7 @@ from pebbenote.instructions.repository import UserInstructionRepository
 from pebbenote.llm.mock import MockAdapter
 from pebbenote.llm.schemas import Chat
 from pebbenote.notes.repository import NoteRepository
+from pebbenote.notes.schemas import NoteEditModel
 from pebbenote.tables import ActionStatus
 
 from .action_service import NoteActionService
@@ -128,3 +129,36 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
         )
 
         self.assertGreater(failed.updated_at, pending.updated_at)
+
+    async def test_manual_delete_is_in_history(self):
+        await self.notes.update_note("default", NoteEditModel(content="- milk\n- eggs"))
+        await self.notes.update_note("default", NoteEditModel(content="- milk"))
+
+        await self.run_action("revert what I just deleted")
+
+        contents = [m.content for m in self.called_chat().messages if m.kind == "user"]
+        self.assertTrue(
+            any("I edited the note myself" in c and "-- eggs" in c for c in contents)
+        )
+        self.assertEqual(contents[-1], "revert what I just deleted")
+
+    async def test_past_action_is_a_user_assistant_pair(self):
+        await self.run_action("add milk")
+        await self.run_action("add eggs")
+
+        messages = self.called_chat().messages
+        index = next(i for i, m in enumerate(messages) if m.content == "add milk")
+        self.assertEqual(messages[index].kind, "user")
+        self.assertEqual(messages[index + 1].kind, "assistant")
+        self.assertIn("+- result", messages[index + 1].content)
+
+    async def test_applied_action_links_revision(self):
+        pending = await self.service.enqueue_action(
+            ActionEditModel(note_id="default", action="add milk")
+        )
+        await self.service.apply_action(pending.note_action_id)
+
+        revisions = await self.notes.list_revisions("default", 10)
+
+        self.assertEqual(revisions[-1].action, "add milk")
+        self.assertEqual(revisions[-1].content, "- result")

@@ -45,9 +45,9 @@ class Note(Base):
     note_id = mapped_column(
         Uuid, primary_key=True, server_default=func.gen_random_uuid()
     )
-    note_text = mapped_column(Text, nullable=False)
-
     actions: Mapped[list["NoteAction"]] = relationship(back_populates="note")
+    # The content of a note is the text of its latest revision
+    revisions: Mapped[list["NoteRevision"]] = relationship(back_populates="note")
 
     owner = mapped_column(Text, nullable=False)
 
@@ -94,6 +94,39 @@ class NoteAction(Base):
     updated_at = updated_at_column()
 
     note: Mapped[Note] = relationship(back_populates="actions")
+    revision: Mapped["NoteRevision | None"] = relationship(
+        back_populates="action", uselist=False
+    )
+
+
+class NoteRevision(Base):
+    """A snapshot of a note after a change, made by an action or by hand"""
+
+    __tablename__ = "note_revision"
+    note_revision_id = mapped_column(
+        Uuid, primary_key=True, server_default=func.gen_random_uuid()
+    )
+
+    note_id = mapped_column(ForeignKey(Note.note_id), nullable=False)
+    note_text = mapped_column(Text, nullable=False)
+
+    # Empty for edits made outside of the LLM, like deleting lines on the watch
+    note_action_id = mapped_column(
+        ForeignKey(NoteAction.note_action_id), nullable=True, unique=True
+    )
+
+    # Set from Python so flushed objects keep a loaded value
+    created_at = mapped_column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        default=utc_now,
+        server_default=func.clock_timestamp(),
+    )
+
+    note: Mapped[Note] = relationship(back_populates="revisions")
+    action: Mapped[NoteAction | None] = relationship(back_populates="revision")
+
+    __table_args__ = (Index("ix_note_revision_note_created", "note_id", "created_at"),)
 
 
 class UserInstruction(Base):
