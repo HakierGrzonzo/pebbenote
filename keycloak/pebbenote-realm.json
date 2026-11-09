@@ -4,6 +4,8 @@
   "accessTokenLifespan": 600,
   "revokeRefreshToken": true,
   "refreshTokenMaxReuse": 0,
+  "offlineSessionIdleTimeout": 2592000,
+  "offlineSessionMaxLifespanEnabled": false,
   "registrationAllowed": true,
   "clientScopes": [
     {
