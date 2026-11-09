@@ -13,7 +13,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.15"
 
       - uses: actions/setup-node@v4
         with:
@@ -55,7 +55,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.15"
 
       - run: pipx install poetry
       - run: poetry config virtualenvs.in-project true
@@ -63,13 +63,16 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: be/.venv
-          key: venv-${{ runner.os }}-py3.13-${{ hashFiles('be/poetry.lock') }}
+          key: venv-${{ runner.os }}-py3.15-${{ hashFiles('be/poetry.lock') }}
 
       - run: poetry install --no-root
       - run: poetry run bash run_tests.sh
 
   cli-tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.13", "3.14", "3.15"]
     defaults:
       run:
         working-directory: cli
@@ -78,7 +81,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python-version }}
 
       - run: pipx install poetry
       - run: poetry config virtualenvs.in-project true
@@ -86,7 +89,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: cli/.venv
-          key: cli-venv-${{ runner.os }}-py3.13-${{ hashFiles('cli/poetry.lock') }}
+          key: cli-venv-${{ runner.os }}-py${{ matrix.python-version }}-${{ hashFiles('cli/poetry.lock') }}
 
       - run: poetry install --no-root
       - run: poetry run python -m unittest discover -v
