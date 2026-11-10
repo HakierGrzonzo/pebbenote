@@ -27,6 +27,7 @@ NOTE = NoteViewModel(
     updated_at=UPDATED_AT,
     version=3,
     actions=[],
+    last_modified="Thu, 01 Jan 2026 00:00:00 GMT",
 )
 INSTRUCTIONS = InstructionsModel(
     instructions=["use metric units", "sort by aisle"], version=4

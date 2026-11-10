@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Response, status
 
-from pebbenote.http_dates import is_modified_since, last_modified
+from pebbenote.http_dates import is_modified_since
 from pebbenote.notes.repository import NoteRepository
 from pebbenote.notes.schemas import (
     NoteConflictModel,
@@ -51,10 +51,10 @@ async def get_note_by_id(
     if_modified_since: Annotated[str | None, Header()] = None,
 ) -> NoteViewModel | Response:
     note = await view.get_note_by_id(note_id)
-    updated_at = NoteView.updated_at(note)
+    updated_at = NoteView.updated_at(note, note.actions)
 
     headers = {
-        "Last-Modified": last_modified(updated_at),
+        "Last-Modified": note.last_modified,
         # Clients may cache the note, but must revalidate it every time
         "Cache-Control": "no-cache",
     }

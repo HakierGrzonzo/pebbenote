@@ -150,8 +150,7 @@ async function pollNote(noteId: string, lastModified?: string) {
 
     let note: NoteViewModel | null = null;
     try {
-      // lastModified is kept until the note changes, so the server can
-      // answer 304 meanwhile
+      // The server answers 304 until the note changes again
       note = await notes.getNoteById(noteId, lastModified);
     } catch (err) {
       if (!(err instanceof ApiError && err.status === 304)) {
@@ -161,6 +160,8 @@ async function pollNote(noteId: string, lastModified?: string) {
       }
     }
     if (note === null) continue;
+    // Changed: from now on only newer changes are news
+    lastModified = note.last_modified;
 
     if (isPending(note)) {
       // An earlier action or something else changed the note

@@ -34,6 +34,10 @@ class NoteConflictModel(BaseModel):
 
 class NoteViewModel(NoteModel):
     actions: list[ActionModel]
+    # The Last-Modified of this response, for the If-Modified-Since of the
+    # next poll. Not the newest updated_at: the current second is never
+    # claimed, a change later in it would be missed.
+    last_modified: str
 
 
 class NoteRevisionModel(BaseModel):

@@ -25,6 +25,7 @@ class NoteViewModel:
         updated_at (datetime.datetime):
         version (int):
         actions (list[ActionModel]):
+        last_modified (str):
     """
 
     note_id: UUID
@@ -33,6 +34,7 @@ class NoteViewModel:
     updated_at: datetime.datetime
     version: int
     actions: list[ActionModel]
+    last_modified: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -51,6 +53,8 @@ class NoteViewModel:
             actions_item = actions_item_data.to_dict()
             actions.append(actions_item)
 
+        last_modified = self.last_modified
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -61,6 +65,7 @@ class NoteViewModel:
                 "updated_at": updated_at,
                 "version": version,
                 "actions": actions,
+                "last_modified": last_modified,
             }
         )
 
@@ -88,6 +93,8 @@ class NoteViewModel:
 
             actions.append(actions_item)
 
+        last_modified = d.pop("last_modified")
+
         note_view_model = cls(
             note_id=note_id,
             content=content,
@@ -95,6 +102,7 @@ class NoteViewModel:
             updated_at=updated_at,
             version=version,
             actions=actions,
+            last_modified=last_modified,
         )
 
         note_view_model.additional_properties = d

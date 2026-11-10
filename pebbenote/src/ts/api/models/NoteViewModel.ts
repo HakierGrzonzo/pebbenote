@@ -10,4 +10,5 @@ export type NoteViewModel = {
   updated_at: string;
   version: number;
   actions: Array<ActionModel>;
+  last_modified: string;
 };
