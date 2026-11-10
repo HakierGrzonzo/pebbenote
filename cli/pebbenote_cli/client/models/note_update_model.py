@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
+
+from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="NoteUpdateModel")
 
@@ -14,26 +16,31 @@ class NoteUpdateModel:
     """
     Attributes:
         content (str):
-        base_version (int):
+        base_version (int | None | Unset):
     """
 
     content: str
-    base_version: int
+    base_version: int | None | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         content = self.content
 
-        base_version = self.base_version
+        base_version: int | None | Unset
+        if isinstance(self.base_version, Unset):
+            base_version = UNSET
+        else:
+            base_version = self.base_version
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
                 "content": content,
-                "base_version": base_version,
             }
         )
+        if base_version is not UNSET:
+            field_dict["base_version"] = base_version
 
         return field_dict
 
@@ -42,7 +49,14 @@ class NoteUpdateModel:
         d = dict(src_dict)
         content = d.pop("content")
 
-        base_version = d.pop("base_version")
+        def _parse_base_version(data: object) -> int | None | Unset:
+            if data is None:
+                return data
+            if isinstance(data, Unset):
+                return data
+            return cast(int | None | Unset, data)
+
+        base_version = _parse_base_version(d.pop("base_version", UNSET))
 
         note_update_model = cls(
             content=content,

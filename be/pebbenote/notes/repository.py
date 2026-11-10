@@ -153,17 +153,20 @@ class NoteRepository:
             .with_for_update()
         )
 
-    async def claim_version(self, note_id: NoteId, base_version: int) -> NoteModel:
+    async def claim_version(
+        self, note_id: NoteId, base_version: int | None
+    ) -> NoteModel:
         """
         The first step of a write that is based on base_version of the note:
         raises NoteConflict, with the note as it is now, when that is no longer
         the latest version. Otherwise the note is locked for the caller's
-        write, until the transaction ends.
+        write, until the transaction ends. Without a base_version any version
+        is taken.
         """
         note = await self.get_note_by_id(note_id)
         await self.lock_note(note.note_id)
         note = await self.get_note_by_id(note.note_id)
-        if note.version != base_version:
+        if base_version is not None and note.version != base_version:
             raise NoteConflict(note)
 
         return note

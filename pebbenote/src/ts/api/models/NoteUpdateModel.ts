@@ -4,5 +4,5 @@
 /* eslint-disable */
 export type NoteUpdateModel = {
   content: string;
-  base_version: number;
+  base_version?: number | null;
 };

@@ -238,6 +238,17 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         note = await self.repository.get_note_by_id(uuid_gen["note", 0])
         self.assertEqual(note, current)
 
+    async def test_edit_without_a_base_version_wins(self):
+        # Clients from before versioning
+        await self.edit(uuid_gen["note", 0], "Theirs")
+
+        note = await self.repository.update_note(
+            uuid_gen["note", 0], NoteUpdateModel(content="Mine")
+        )
+
+        self.assertEqual(note.content, "Mine")
+        self.assertEqual(note.version, 3)
+
     async def test_claim_version(self):
         note = await self.repository.claim_version("default", 1)
         self.assertEqual(note.version, 1)

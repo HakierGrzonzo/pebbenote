@@ -21,8 +21,9 @@ class NoteEditModel(BaseModel):
 
 
 class NoteUpdateModel(NoteEditModel):
-    # The version of the note the edit was made on
-    base_version: int
+    # The version of the note the edit was made on. Clients from before
+    # versioning leave it out, their edit wins over any newer version.
+    base_version: int | None = None
 
 
 class NoteConflictModel(BaseModel):
