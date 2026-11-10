@@ -5,8 +5,9 @@ from unittest import TestCase, mock
 from uuid import UUID
 
 from . import cli
+from .client.api.instructions import list_instructions, replace_instructions
 from .client.api.notes import edit_note_by_id, get_note_by_id, list_notes
-from .client.models import NoteEditModel, NoteModel, NoteViewModel
+from .client.models import InstructionsModel, NoteEditModel, NoteModel, NoteViewModel
 from .config import Config
 from .errors import CliError
 
@@ -20,6 +21,8 @@ NOTE = NoteViewModel(
     updated_at=UPDATED_AT,
     actions=[],
 )
+INSTRUCTIONS = InstructionsModel(instructions=["use metric units", "sort by aisle"])
+INSTRUCTIONS_TEXT = "- use metric units\n- sort by aisle\n"
 
 
 class MainTestCase(TestCase):
@@ -103,6 +106,63 @@ class MainTestCase(TestCase):
             stdout,
             f"* {NOTE_ID}  Shopping\n  00000000-0000-0000-0000-00000000000b  \n",
         )
+
+    def test_instructions_without_tty_prints_list(self):
+        self.call.return_value = INSTRUCTIONS
+        stdout, _ = self.run_cli("instructions", tty=False)
+
+        self.call.assert_called_once_with(CONFIG, list_instructions)
+        self.assertEqual(stdout, INSTRUCTIONS_TEXT)
+        self.edit_text.assert_not_called()
+
+    def test_instructions_unchanged_does_not_sync(self):
+        self.call.return_value = INSTRUCTIONS
+        # Reformatting and reordering alone are not a change
+        self.edit_text.return_value = "* sort by aisle\n\n* use metric units"
+        _, stderr = self.run_cli("instructions")
+
+        self.edit_text.assert_called_once_with(INSTRUCTIONS_TEXT)
+        self.assertIn("No changes", stderr)
+        self.assertEqual(self.call.call_count, 1)
+
+    def test_instructions_changed_syncs(self):
+        self.call.return_value = INSTRUCTIONS
+        self.edit_text.return_value = "- sort by aisle\n- write in Polish\n"
+        _, stderr = self.run_cli("instructions")
+
+        self.call.assert_called_with(
+            CONFIG,
+            replace_instructions,
+            body=InstructionsModel(instructions=["sort by aisle", "write in Polish"]),
+            apply=True,
+        )
+        self.assertIn("Instructions synced (2); notes will be updated", stderr)
+
+    def test_instructions_no_apply_only_saves(self):
+        self.call.return_value = INSTRUCTIONS
+        self.edit_text.return_value = "- write in Polish\n"
+        _, stderr = self.run_cli("instructions", "--no-apply")
+
+        self.call.assert_called_with(
+            CONFIG,
+            replace_instructions,
+            body=InstructionsModel(instructions=["write in Polish"]),
+            apply=False,
+        )
+        self.assertIn("Instructions synced (1).", stderr)
+
+    def test_instructions_emptied_clears(self):
+        self.call.return_value = INSTRUCTIONS
+        self.edit_text.return_value = ""
+        _, stderr = self.run_cli("instructions")
+
+        self.call.assert_called_with(
+            CONFIG,
+            replace_instructions,
+            body=InstructionsModel(instructions=[]),
+            apply=True,
+        )
+        self.assertIn("Instructions synced (0).", stderr)
 
     def test_login(self):
         _, stderr = self.run_cli("login")

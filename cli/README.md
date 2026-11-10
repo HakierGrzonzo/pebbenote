@@ -20,12 +20,15 @@ poetry install
 ## Usage
 
 ```sh
-pebbenote            # edit the default note
-pebbenote <note_id>  # edit a specific note
-pebbenote list       # list notes (* = default)
-pebbenote login      # force a new login
-pebbenote > note.md  # piped output prints the note instead of opening the editor
+pebbenote               # edit the default note
+pebbenote <note_id>     # edit a specific note
+pebbenote list          # list notes (* = default)
+pebbenote instructions  # edit the standing instructions as a list
+pebbenote login         # force a new login
+pebbenote > note.md     # piped output prints the note instead of opening the editor
 ```
+
+`pebbenote instructions` opens the standing instructions (the ones the assistant follows on every note) as a list, one `- ` item each. Add, reword or delete items; the saved list replaces the stored one, and the backend then applies it in the background to every note that isn't changed in the meantime. `--no-apply` only saves the list. Piped, it prints the list.
 
 ## Configuration
 

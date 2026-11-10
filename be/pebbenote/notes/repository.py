@@ -1,6 +1,7 @@
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Select, desc, update
+from sqlalchemy import ColumnElement, Select, desc, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 
 from pebbenote.auth import CurrentUser
@@ -143,6 +144,47 @@ class NoteRepository:
             revision = await self._add_revision(note, text, action_id)
 
         return self.map_note(note, revision)
+
+    def _unchanged_note(
+        self, note_id: UUID, updated_at: datetime, *conditions: ColumnElement[bool]
+    ) -> list[ColumnElement[bool]]:
+        return [
+            Note.note_id == note_id,
+            Note.owner == self.user,
+            Note.updated_at == updated_at,
+            *conditions,
+        ]
+
+    async def is_unchanged(
+        self, note_id: UUID, updated_at: datetime, *conditions: ColumnElement[bool]
+    ) -> bool:
+        """
+        Whether take_unchanged_note would succeed now. Only a hint, to skip
+        work that is already known to be thrown away.
+        """
+        query = Select(Note.note_id).where(
+            *self._unchanged_note(note_id, updated_at, *conditions)
+        )
+        return (await self.session.execute(query)).scalar_one_or_none() is not None
+
+    async def take_unchanged_note(
+        self, note_id: UUID, updated_at: datetime, *conditions: ColumnElement[bool]
+    ) -> bool:
+        """
+        Marks the note as changed now, but only if it was not changed since
+        updated_at and the extra conditions hold. Says whether it did; then
+        the note is locked for the caller's edit.
+
+        The check is the WHERE clause of the update, so nothing can change in
+        between and no lock has to be held before.
+        """
+        taken = await self.session.execute(
+            update(Note)
+            .where(*self._unchanged_note(note_id, updated_at, *conditions))
+            .values(updated_at=utc_now())
+            .returning(Note.note_id)
+        )
+        return taken.scalar_one_or_none() is not None
 
     async def create_note(self, note_model: NoteEditModel) -> NoteModel:
         note = Note(owner=self.user)

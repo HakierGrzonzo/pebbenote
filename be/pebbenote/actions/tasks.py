@@ -1,3 +1,4 @@
+from datetime import datetime
 from logging import getLogger
 from typing import Annotated
 from uuid import UUID
@@ -54,3 +55,23 @@ async def apply_action_task(
             await actions.set_status(UUID(action_id), ActionStatus.failed)
             await session.commit()
         raise
+
+
+@broker.task(retry_on_error=True, max_retries=settings.ACTION_MAX_RETRIES)
+async def apply_instructions_task(
+    note_id: str,
+    note_updated_at: str,
+    instructions: list[str],
+    owner: str,
+    # Unused, but opens the session that commits when the task is done
+    session: Annotated[AsyncSession, TaskiqDepends(get_db)],
+    service: Annotated[NoteActionService, TaskiqDepends()],
+) -> NoteModel | None:
+    """
+    Applies just edited instructions to one note, scheduled with the note's
+    updated_at and the instructions of that moment. Skips the note when either
+    has changed since.
+    """
+    return await service.apply_instructions(
+        UUID(note_id), datetime.fromisoformat(note_updated_at), instructions
+    )

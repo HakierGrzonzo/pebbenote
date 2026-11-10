@@ -9,6 +9,7 @@ from pebbenote.notes.schemas import NoteEditModel
 from pebbenote.tables import ActionStatus
 
 from .action_service import NoteActionService
+from .prompts import apply_instructions_action_text, apply_instructions_preamble
 from .repository import NoteActionRepository
 from .schemas import ActionEditModel
 
@@ -162,3 +163,96 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
 
         self.assertEqual(revisions[-1].action, "add milk")
         self.assertEqual(revisions[-1].content, "- result")
+
+    async def test_edited_instructions_are_applied(self):
+        await self.instructions.replace_instructions(["I should shout.", "I sort."])
+        before = await self.notes.get_note_by_id("default")
+
+        # The order of the instructions does not matter
+        note = await self.service.apply_instructions(
+            before.note_id, before.updated_at, ["I sort.", "I should shout."]
+        )
+
+        assert note is not None
+        self.assertEqual(note.content, "- result")
+        messages = self.called_chat().messages
+        self.assertEqual(messages[-1].content, apply_instructions_preamble)
+        self.assertIn("I should shout.", messages[-2].content)
+        revisions = await self.notes.list_revisions("default", 10)
+        self.assertEqual(revisions[-1].action, apply_instructions_action_text)
+
+    async def test_instructions_are_not_applied_to_a_changed_note(self):
+        await self.instructions.replace_instructions(["I should shout."])
+        before = await self.notes.get_note_by_id("default")
+        await self.notes.update_note("default", NoteEditModel(content="- by hand"))
+
+        note = await self.service.apply_instructions(
+            before.note_id, before.updated_at, ["I should shout."]
+        )
+
+        self.assertIsNone(note)
+        with self.assertRaises(Exception):
+            self.ai.get_called_with()
+        after = await self.notes.get_note_by_id("default")
+        self.assertEqual(after.content, "- by hand")
+
+    async def test_outdated_instructions_are_not_applied(self):
+        await self.instructions.replace_instructions(["I should whisper."])
+        before = await self.notes.get_note_by_id("default")
+
+        note = await self.service.apply_instructions(
+            before.note_id, before.updated_at, ["I should shout."]
+        )
+
+        self.assertIsNone(note)
+        with self.assertRaises(Exception):
+            self.ai.get_called_with()
+
+    async def test_note_following_the_instructions_is_left_alone(self):
+        await self.instructions.replace_instructions(["I should shout."])
+        before = await self.notes.get_note_by_id("default")
+        self.ai.set_result(f"{before.content}\n")
+
+        note = await self.service.apply_instructions(
+            before.note_id, before.updated_at, ["I should shout."]
+        )
+
+        self.assertEqual(note, before)
+        self.assertEqual(await self.actions.list_actions(before.note_id), [])
+        self.assertEqual(len(await self.notes.list_revisions("default", 10)), 1)
+
+    async def apply_instructions_while(self, change):
+        """Applies the instructions, with `change` happening during the LLM call"""
+        await self.instructions.replace_instructions(["I should shout."])
+        before = await self.notes.get_note_by_id("default")
+
+        async def completion(chat: Chat) -> str:
+            await change()
+            return "- result"
+
+        self.ai.get_completion = completion  # type: ignore[method-assign]
+
+        note = await self.service.apply_instructions(
+            before.note_id, before.updated_at, ["I should shout."]
+        )
+        return note, before
+
+    async def test_instructions_edited_during_completion_are_not_applied(self):
+        note, before = await self.apply_instructions_while(
+            lambda: self.instructions.replace_instructions(["I should whisper."])
+        )
+
+        self.assertIsNone(note)
+        after = await self.notes.get_note_by_id("default")
+        self.assertEqual(after.content, before.content)
+        self.assertEqual(await self.actions.list_actions(before.note_id), [])
+
+    async def test_note_edited_during_completion_is_kept(self):
+        note, before = await self.apply_instructions_while(
+            lambda: self.notes.update_note("default", NoteEditModel(content="- mine"))
+        )
+
+        self.assertIsNone(note)
+        after = await self.notes.get_note_by_id("default")
+        self.assertEqual(after.content, "- mine")
+        self.assertEqual(await self.actions.list_actions(before.note_id), [])

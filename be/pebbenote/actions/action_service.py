@@ -1,3 +1,5 @@
+from datetime import datetime
+from logging import getLogger
 from typing import Annotated
 from uuid import UUID
 
@@ -18,9 +20,12 @@ from .history import build_history
 from .prompts import (
     apply_action_preamble,
     apply_action_system_prompt,
+    apply_instructions_action_text,
     apply_instructions_preamble,
     standing_instructions_prefix,
 )
+
+logger = getLogger(__name__)
 
 
 class NoteActionService:
@@ -69,8 +74,68 @@ class NoteActionService:
             preamble, user_message = apply_action_preamble, action.action
 
         instructions = await self.instruction_repository.list_instructions()
+        response = await self.ai.get_completion(
+            await self._build_chat(note.note_id, instructions, preamble, user_message)
+        )
+
+        await self.action_repository.set_status(
+            action.note_action_id, ActionStatus.done
+        )
+        return await self.note_repository.update_note(
+            note.note_id, NoteEditModel(content=response), action.note_action_id
+        )
+
+    async def apply_instructions(
+        self, note_id: UUID, note_updated_at: datetime, instructions: list[str]
+    ) -> NoteModel | None:
+        """
+        Applies the standing instructions to a note after they were edited.
+
+        Does nothing and returns None when the note or the instructions have
+        changed since the edit: the note's author or a newer job knows better.
+        note_updated_at and instructions are the ones of that edit.
+        """
+        unchanged = (
+            note_id,
+            note_updated_at,
+            self.instruction_repository.instructions_are(instructions),
+        )
+        # Only saves the LLM call, the check that counts is in the update
+        if not await self.note_repository.is_unchanged(*unchanged):
+            logger.info("Not applying instructions to %s, it is outdated", note_id)
+            return None
+
+        note = await self.note_repository.get_note_by_id(note_id)
+        response = await self.ai.get_completion(
+            await self._build_chat(
+                note_id, instructions, apply_instructions_preamble, None
+            )
+        )
+        if response.strip() == note.content:
+            return note
+
+        # Nothing was locked while the LLM was busy: the update only goes
+        # through if the note and the instructions are still the same
+        if not await self.note_repository.take_unchanged_note(*unchanged):
+            logger.info("Not applying instructions to %s, it has changed", note_id)
+            return None
+
+        action = await self.action_repository.add_action(
+            note_id, apply_instructions_action_text
+        )
+        return await self.note_repository.update_note(
+            note_id, NoteEditModel(content=response), action.note_action_id
+        )
+
+    async def _build_chat(
+        self,
+        note_id: UUID,
+        instructions: list[str],
+        preamble: str,
+        user_message: str | None,
+    ) -> Chat:
         revisions = await self.note_repository.list_revisions(
-            note.note_id, settings.HISTORY_REVISIONS
+            note_id, settings.HISTORY_REVISIONS
         )
 
         messages = [
@@ -89,11 +154,4 @@ class NoteActionService:
         if user_message is not None:
             messages.append(Message(kind="user", content=user_message))
 
-        response = await self.ai.get_completion(Chat(messages=messages))
-
-        await self.action_repository.set_status(
-            action.note_action_id, ActionStatus.done
-        )
-        return await self.note_repository.update_note(
-            note.note_id, NoteEditModel(content=response), action.note_action_id
-        )
+        return Chat(messages=messages)

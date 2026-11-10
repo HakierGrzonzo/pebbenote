@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "pebbenote-cli"
-version = "0.1.0"
+version = "0.2.0"
 description = "Command line client for pebbenote"
 authors = ["Grzegorz Koperwas <admin@grzegorzkoperwas.site>"]
 license = "GPL"
