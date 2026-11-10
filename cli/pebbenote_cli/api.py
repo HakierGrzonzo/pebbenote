@@ -5,7 +5,7 @@ import httpx
 from pebbenote_cli.auth import access_token
 from pebbenote_cli.client import AuthenticatedClient
 from pebbenote_cli.config import Config
-from pebbenote_cli.errors import CliError
+from pebbenote_cli.errors import CliError, ConflictError
 from pebbenote_cli.http import UNAVAILABLE_STATUSES, USER_AGENT
 
 
@@ -26,7 +26,11 @@ def _detail(content: bytes):
 
 
 def call(config: Config, endpoint, **kwargs):
-    """Call a generated endpoint module, retrying once with a fresh token on 401."""
+    """
+    Call a generated endpoint module, retrying once with a fresh token on 401.
+
+    A 409 raises ConflictError with the current state of what was edited.
+    """
     name = endpoint.__name__.rsplit(".", 1)[-1]
     try:
         response = endpoint.sync_detailed(
@@ -45,7 +49,9 @@ def call(config: Config, endpoint, **kwargs):
             "the backend seems to be down"
         )
     if response.status_code >= 400:
-        raise CliError(
-            f"{name} failed ({response.status_code}): {_detail(response.content)}"
-        )
+        message = f"{name} failed ({response.status_code}): {_detail(response.content)}"
+        current = getattr(response.parsed, "current", None)
+        if response.status_code == 409 and current is not None:
+            raise ConflictError(message, current)
+        raise CliError(message)
     return response.parsed

@@ -10,10 +10,45 @@ from pebbenote_cli.client.api.instructions import (
 )
 from pebbenote_cli.client.api.notes import edit_note_by_id, get_note_by_id, list_notes
 from pebbenote_cli.client.models import InstructionsEditModel, NoteUpdateModel
-from pebbenote_cli.config import load_config
+from pebbenote_cli.config import UNRESOLVED_FILE, load_config
 from pebbenote_cli.editor import edit_text
-from pebbenote_cli.errors import CliError
+from pebbenote_cli.errors import CliError, ConflictError
 from pebbenote_cli.instructions import format_instructions, parse_instructions
+from pebbenote_cli.merge import has_markers, merge3
+
+
+def push_merging(base, edited, version, push, text_of):
+    """
+    Syncs `edited`, an edit of the text `base` that had `version` on the
+    server, with push(text, base_version).
+
+    When the server has a newer version, its text (text_of the conflict's
+    current state) is merged with the edit like git would: changes in
+    different places are combined and pushed again, changes to the same place
+    are opened in the editor between conflict markers.
+    """
+    while True:
+        try:
+            return push(edited, version)
+        except ConflictError as conflict:
+            theirs = text_of(conflict.current)
+            edited, has_conflicts = merge3(base, edited, theirs)
+            base, version = theirs, conflict.current.version
+
+        if not has_conflicts:
+            print("Merged with changes made on the server.", file=sys.stderr)
+            continue
+        print(
+            "Changed on the server in the same places; resolve the conflicts.",
+            file=sys.stderr,
+        )
+        edited = edit_text(edited)
+        if has_markers(edited):
+            UNRESOLVED_FILE.parent.mkdir(parents=True, exist_ok=True)
+            UNRESOLVED_FILE.write_text(edited)
+            raise CliError(
+                f"Conflict markers left; not syncing. Your text is in {UNRESOLVED_FILE}"
+            )
 
 
 def cmd_edit(config, args):
@@ -25,12 +60,16 @@ def cmd_edit(config, args):
     if edited == note.content:
         print("No changes; nothing to sync.", file=sys.stderr)
         return
-    api.call(
-        config,
-        edit_note_by_id,
-        note_id=args.note_id,
-        body=NoteUpdateModel(content=edited, base_version=note.version),
-    )
+
+    def push(text, base_version):
+        api.call(
+            config,
+            edit_note_by_id,
+            note_id=args.note_id,
+            body=NoteUpdateModel(content=text, base_version=base_version),
+        )
+
+    push_merging(note.content, edited, note.version, push, lambda note: note.content)
     print("Note synced.", file=sys.stderr)
 
 
@@ -47,20 +86,32 @@ def cmd_instructions(config, args):
     if not sys.stdout.isatty():
         sys.stdout.write(text)
         return
-    edited = parse_instructions(edit_text(text))
+    edited = edit_text(text)
     # The order of the instructions does not matter
-    if sorted(edited) == sorted(current.instructions):
+    if sorted(parse_instructions(edited)) == sorted(current.instructions):
         print("No changes; nothing to sync.", file=sys.stderr)
         return
     apply = not args.no_apply
-    api.call(
-        config,
-        replace_instructions,
-        body=InstructionsEditModel(instructions=edited, base_version=current.version),
-        apply=apply,
-    )
-    message = f"Instructions synced ({len(edited)})"
-    if apply and edited:
+
+    def push(text, base_version):
+        return api.call(
+            config,
+            replace_instructions,
+            body=InstructionsEditModel(
+                instructions=parse_instructions(text), base_version=base_version
+            ),
+            apply=apply,
+        )
+
+    synced = push_merging(
+        text,
+        edited,
+        current.version,
+        push,
+        lambda current: format_instructions(current.instructions),
+    ).instructions
+    message = f"Instructions synced ({len(synced)})"
+    if apply and synced:
         message += "; notes will be updated in the background"
     print(f"{message}.", file=sys.stderr)
 

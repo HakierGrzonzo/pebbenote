@@ -11,6 +11,8 @@ CONFIG_FILE = CONFIG_HOME / "pebbenote" / "config.toml"
 
 STATE_HOME = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
 TOKEN_FILE = STATE_HOME / "pebbenote" / "tokens.json"
+# An edit that could not be synced because its conflicts were left unresolved
+UNRESOLVED_FILE = STATE_HOME / "pebbenote" / "unresolved.md"
 
 DEFAULT_BACKEND_URL = "https://dev.grzegorzkoperwas.site"
 DEFAULT_ISSUER = "https://auth.grzegorzkoperwas.site/realms/pebbenote"

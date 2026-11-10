@@ -7,7 +7,7 @@ import httpx
 from .api import call
 from .client.types import Response
 from .config import Config
-from .errors import CliError
+from .errors import CliError, ConflictError
 
 CONFIG = Config(backend_url="http://backend", issuer="http://issuer")
 
@@ -68,6 +68,20 @@ class CallTestCase(TestCase):
         with self.assertRaises(CliError) as ctx:
             call(CONFIG, self.endpoint, note_id="a")
         self.assertEqual(str(ctx.exception), "get_note_by_id failed (500): None")
+
+    def test_conflict_carries_the_current_state(self):
+        self.sync_detailed.return_value = response(
+            409,
+            b'{"detail": "The note has changed", "current": {}}',
+            parsed=SimpleNamespace(detail="The note has changed", current="theirs"),
+        )
+
+        with self.assertRaises(ConflictError) as ctx:
+            call(CONFIG, self.endpoint, note_id="a")
+        self.assertEqual(ctx.exception.current, "theirs")
+        self.assertEqual(
+            str(ctx.exception), "get_note_by_id failed (409): The note has changed"
+        )
 
     def test_backend_down(self):
         self.sync_detailed.return_value = response(502, b"<html>Bad Gateway</html>")

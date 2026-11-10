@@ -15,7 +15,7 @@ from .client.models import (
     NoteViewModel,
 )
 from .config import Config
-from .errors import CliError
+from .errors import CliError, ConflictError
 
 CONFIG = Config(backend_url="http://backend", issuer="http://issuer")
 NOTE_ID = UUID("00000000-0000-0000-0000-00000000000a")
@@ -32,6 +32,14 @@ INSTRUCTIONS = InstructionsModel(
     instructions=["use metric units", "sort by aisle"], version=4
 )
 INSTRUCTIONS_TEXT = "- use metric units\n- sort by aisle\n"
+
+
+def saved(*instructions):
+    return InstructionsModel(instructions=list(instructions), version=5)
+
+
+def conflict(current):
+    return ConflictError("conflict", current)
 
 
 class MainTestCase(TestCase):
@@ -136,7 +144,10 @@ class MainTestCase(TestCase):
         self.assertEqual(self.call.call_count, 1)
 
     def test_instructions_changed_syncs(self):
-        self.call.return_value = INSTRUCTIONS
+        self.call.side_effect = [
+            INSTRUCTIONS,
+            saved("sort by aisle", "write in Polish"),
+        ]
         self.edit_text.return_value = "- sort by aisle\n- write in Polish\n"
         _, stderr = self.run_cli("instructions")
 
@@ -151,7 +162,7 @@ class MainTestCase(TestCase):
         self.assertIn("Instructions synced (2); notes will be updated", stderr)
 
     def test_instructions_no_apply_only_saves(self):
-        self.call.return_value = INSTRUCTIONS
+        self.call.side_effect = [INSTRUCTIONS, saved("write in Polish")]
         self.edit_text.return_value = "- write in Polish\n"
         _, stderr = self.run_cli("instructions", "--no-apply")
 
@@ -166,7 +177,7 @@ class MainTestCase(TestCase):
         self.assertIn("Instructions synced (1).", stderr)
 
     def test_instructions_emptied_clears(self):
-        self.call.return_value = INSTRUCTIONS
+        self.call.side_effect = [INSTRUCTIONS, saved()]
         self.edit_text.return_value = ""
         _, stderr = self.run_cli("instructions")
 
@@ -177,6 +188,87 @@ class MainTestCase(TestCase):
             apply=True,
         )
         self.assertIn("Instructions synced (0).", stderr)
+
+    def server_note(self, content):
+        return NoteModel(
+            note_id=NOTE_ID,
+            content=content,
+            is_default=True,
+            updated_at=UPDATED_AT,
+            version=4,
+        )
+
+    def test_edit_merges_changes_in_other_places(self):
+        theirs = self.server_note("Shopping\n- milk\n- eggs")
+        self.call.side_effect = [NOTE, conflict(theirs), theirs]
+        self.edit_text.return_value = "Groceries\n- milk\n"
+        _, stderr = self.run_cli("edit", "abc")
+
+        # Pushed again without the editor, on top of the server's version
+        self.edit_text.assert_called_once_with(NOTE.content)
+        self.call.assert_called_with(
+            CONFIG,
+            edit_note_by_id,
+            note_id="abc",
+            body=NoteUpdateModel(content="Groceries\n- milk\n- eggs\n", base_version=4),
+        )
+        self.assertIn("Merged with changes made on the server", stderr)
+        self.assertIn("Note synced", stderr)
+
+    def test_edit_conflict_is_resolved_in_the_editor(self):
+        theirs = self.server_note("Shopping\n- soy milk")
+        self.call.side_effect = [NOTE, conflict(theirs), theirs]
+        self.edit_text.side_effect = [
+            "Shopping\n- oat milk\n",
+            "Shopping\n- oat and soy milk\n",
+        ]
+        _, stderr = self.run_cli("edit", "abc")
+
+        self.edit_text.assert_called_with(
+            "Shopping\n<<<<<<< yours\n- oat milk\n=======\n- soy milk\n>>>>>>> server\n"
+        )
+        self.call.assert_called_with(
+            CONFIG,
+            edit_note_by_id,
+            note_id="abc",
+            body=NoteUpdateModel(
+                content="Shopping\n- oat and soy milk\n", base_version=4
+            ),
+        )
+        self.assertIn("resolve the conflicts", stderr)
+        self.assertIn("Note synced", stderr)
+
+    def test_edit_with_markers_left_is_saved_not_synced(self):
+        unresolved = self.patch("pebbenote_cli.cli.UNRESOLVED_FILE")
+        theirs = self.server_note("Shopping\n- soy milk")
+        self.call.side_effect = [NOTE, conflict(theirs)]
+        marked = "Shopping\n<<<<<<< yours\n- oat milk\n"
+        self.edit_text.side_effect = ["Shopping\n- oat milk\n", marked]
+
+        with self.assertRaises(SystemExit) as ctx:
+            self.run_cli("edit", "abc")
+
+        self.assertIn("Conflict markers left", ctx.exception.code)
+        unresolved.write_text.assert_called_once_with(marked)
+        self.assertEqual(self.call.call_count, 2)
+
+    def test_instructions_merge_changes_made_elsewhere(self):
+        theirs = InstructionsModel(
+            instructions=["use metric units", "sort by aisle", "be brief"], version=5
+        )
+        merged = ["write in Polish", "sort by aisle", "be brief"]
+        self.call.side_effect = [INSTRUCTIONS, conflict(theirs), saved(*merged)]
+        self.edit_text.return_value = "- write in Polish\n- sort by aisle\n"
+        _, stderr = self.run_cli("instructions")
+
+        self.call.assert_called_with(
+            CONFIG,
+            replace_instructions,
+            body=InstructionsEditModel(instructions=merged, base_version=5),
+            apply=True,
+        )
+        self.assertIn("Merged with changes made on the server", stderr)
+        self.assertIn("Instructions synced (3)", stderr)
 
     def test_login(self):
         _, stderr = self.run_cli("login")
