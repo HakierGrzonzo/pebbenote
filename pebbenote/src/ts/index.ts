@@ -21,6 +21,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const keys = require("message_keys") as Record<string, number>;
 
+import { deleteLines, rebaseDeletes } from "./lines";
 import {
   ConfigNote,
   ConfigResult,
@@ -215,33 +216,31 @@ function queueDictation(dictation: string) {
 // How often a delete is redone on a note that was changed in the meantime
 const DELETE_ATTEMPTS = 3;
 
-// Each index is relative to the note after the earlier deletes, like the watch applied them
+// Each index is relative to the note after the earlier deletes, like the
+// watch applied them to the note it showed
 async function deleteNoteLines(indexes: number[]) {
   // The note the lines were deleted from, "default" may point at another one
-  const noteId = shown.noteId;
-  if (!noteId) return;
+  const base = shown;
+  if (!base.noteId) return;
   const notes = makeClient().notes;
+  const { content, deleted } = deleteLines(base.content, indexes);
+  let edit = { content, base_version: base.version };
   try {
-    let note: NoteModel = await notes.getNoteById(noteId);
     for (let attempt = 1; ; attempt++) {
-      const lines = note.content.split("\n");
-      for (const index of indexes) {
-        if (index >= 0 && index < lines.length) {
-          lines.splice(index, 1);
-        }
-      }
       try {
-        const updated = await notes.editNoteById(noteId, {
-          content: lines.join("\n"),
-          base_version: note.version,
-        });
+        const updated = await notes.editNoteById(base.noteId, edit);
         sendNote(updated, {}, true);
         return;
       } catch (e) {
         const conflict = e instanceof ApiError && e.status === 409;
         if (!conflict || attempt >= DELETE_ATTEMPTS) throw e;
-        // The note has changed since it was fetched, delete from the new one
-        note = (e.body as NoteConflictModel).current;
+        // The note has changed since the watch got it: delete the same lines,
+        // found by their text, from the new one
+        const current = (e.body as NoteConflictModel).current;
+        edit = {
+          content: rebaseDeletes(current.content, deleted),
+          base_version: current.version,
+        };
       }
     }
   } catch (e) {
