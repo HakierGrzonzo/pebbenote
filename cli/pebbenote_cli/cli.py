@@ -62,10 +62,11 @@ def cmd_edit(config, args):
         return
 
     def push(text, base_version):
+        # The note that was read: "default" may point at another one by now
         api.call(
             config,
             edit_note_by_id,
-            note_id=args.note_id,
+            note_id=note.note_id,
             body=NoteUpdateModel(content=text, base_version=base_version),
         )
 

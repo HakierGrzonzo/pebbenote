@@ -65,7 +65,7 @@ function encodeNote(note: string) {
 
 // The note the watch shows. Responses can arrive out of order, an older
 // version of the note must not replace a newer one.
-let shown = { noteId: "", version: 0 };
+let shown = { noteId: "", version: 0, content: "" };
 
 // Sends the note unless the watch already has this version or a newer one.
 // With force the same version is sent again, for its extra keys.
@@ -78,7 +78,11 @@ function sendNote(
     if (note.version < shown.version) return;
     if (note.version === shown.version && !force) return;
   }
-  shown = { noteId: note.note_id, version: note.version };
+  shown = {
+    noteId: note.note_id,
+    version: note.version,
+    content: note.content,
+  };
   PebbleTS.sendAppMessage({ ...encodeNote(note.content), ...extra });
 }
 
@@ -213,9 +217,12 @@ const DELETE_ATTEMPTS = 3;
 
 // Each index is relative to the note after the earlier deletes, like the watch applied them
 async function deleteNoteLines(indexes: number[]) {
+  // The note the lines were deleted from, "default" may point at another one
+  const noteId = shown.noteId;
+  if (!noteId) return;
   const notes = makeClient().notes;
   try {
-    let note: NoteModel = await notes.getNoteById("default");
+    let note: NoteModel = await notes.getNoteById(noteId);
     for (let attempt = 1; ; attempt++) {
       const lines = note.content.split("\n");
       for (const index of indexes) {
@@ -224,7 +231,7 @@ async function deleteNoteLines(indexes: number[]) {
         }
       }
       try {
-        const updated = await notes.editNoteById("default", {
+        const updated = await notes.editNoteById(noteId, {
           content: lines.join("\n"),
           base_version: note.version,
         });

@@ -101,10 +101,22 @@ class MainTestCase(TestCase):
         self.call.assert_called_with(
             CONFIG,
             edit_note_by_id,
-            note_id="abc",
+            note_id=NOTE_ID,
             body=NoteUpdateModel(content="Updated", base_version=3),
         )
         self.assertIn("Note synced", stderr)
+
+    def test_edit_of_default_syncs_the_note_that_was_read(self):
+        self.call.return_value = NOTE
+        self.edit_text.return_value = "Updated"
+        self.run_cli()
+
+        self.call.assert_called_with(
+            CONFIG,
+            edit_note_by_id,
+            note_id=NOTE_ID,
+            body=NoteUpdateModel(content="Updated", base_version=3),
+        )
 
     def test_list(self):
         self.call.return_value = [
@@ -209,7 +221,7 @@ class MainTestCase(TestCase):
         self.call.assert_called_with(
             CONFIG,
             edit_note_by_id,
-            note_id="abc",
+            note_id=NOTE_ID,
             body=NoteUpdateModel(content="Groceries\n- milk\n- eggs\n", base_version=4),
         )
         self.assertIn("Merged with changes made on the server", stderr)
@@ -230,7 +242,7 @@ class MainTestCase(TestCase):
         self.call.assert_called_with(
             CONFIG,
             edit_note_by_id,
-            note_id="abc",
+            note_id=NOTE_ID,
             body=NoteUpdateModel(
                 content="Shopping\n- oat and soy milk\n", base_version=4
             ),
