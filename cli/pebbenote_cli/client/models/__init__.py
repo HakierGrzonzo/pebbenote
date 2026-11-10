@@ -5,6 +5,8 @@ from .action_edit_model import ActionEditModel
 from .action_model import ActionModel
 from .action_status import ActionStatus
 from .http_validation_error import HTTPValidationError
+from .instructions_conflict_model import InstructionsConflictModel
+from .instructions_edit_model import InstructionsEditModel
 from .instructions_model import InstructionsModel
 from .note_conflict_model import NoteConflictModel
 from .note_model import NoteModel
@@ -19,6 +21,8 @@ __all__ = (
     "ActionModel",
     "ActionStatus",
     "HTTPValidationError",
+    "InstructionsConflictModel",
+    "InstructionsEditModel",
     "InstructionsModel",
     "NoteConflictModel",
     "NoteModel",

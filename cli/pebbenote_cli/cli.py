@@ -9,7 +9,7 @@ from pebbenote_cli.client.api.instructions import (
     replace_instructions,
 )
 from pebbenote_cli.client.api.notes import edit_note_by_id, get_note_by_id, list_notes
-from pebbenote_cli.client.models import InstructionsModel, NoteUpdateModel
+from pebbenote_cli.client.models import InstructionsEditModel, NoteUpdateModel
 from pebbenote_cli.config import load_config
 from pebbenote_cli.editor import edit_text
 from pebbenote_cli.errors import CliError
@@ -42,21 +42,21 @@ def cmd_list(config, _args):
 
 
 def cmd_instructions(config, args):
-    current = api.call(config, list_instructions).instructions
-    text = format_instructions(current)
+    current = api.call(config, list_instructions)
+    text = format_instructions(current.instructions)
     if not sys.stdout.isatty():
         sys.stdout.write(text)
         return
     edited = parse_instructions(edit_text(text))
     # The order of the instructions does not matter
-    if sorted(edited) == sorted(current):
+    if sorted(edited) == sorted(current.instructions):
         print("No changes; nothing to sync.", file=sys.stderr)
         return
     apply = not args.no_apply
     api.call(
         config,
         replace_instructions,
-        body=InstructionsModel(instructions=edited),
+        body=InstructionsEditModel(instructions=edited, base_version=current.version),
         apply=apply,
     )
     message = f"Instructions synced ({len(edited)})"

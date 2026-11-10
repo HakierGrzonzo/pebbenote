@@ -15,6 +15,8 @@ export type { ActionEditModel } from "./models/ActionEditModel";
 export type { ActionModel } from "./models/ActionModel";
 export { ActionStatus } from "./models/ActionStatus";
 export type { HTTPValidationError } from "./models/HTTPValidationError";
+export type { InstructionsConflictModel } from "./models/InstructionsConflictModel";
+export type { InstructionsEditModel } from "./models/InstructionsEditModel";
 export type { InstructionsModel } from "./models/InstructionsModel";
 export type { NoteConflictModel } from "./models/NoteConflictModel";
 export type { NoteModel } from "./models/NoteModel";

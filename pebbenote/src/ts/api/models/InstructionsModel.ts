@@ -4,4 +4,5 @@
 /* eslint-disable */
 export type InstructionsModel = {
   instructions: Array<string>;
+  version: number;
 };

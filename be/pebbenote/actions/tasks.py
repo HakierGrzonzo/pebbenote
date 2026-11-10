@@ -1,4 +1,3 @@
-from datetime import datetime
 from logging import getLogger
 from typing import Annotated
 from uuid import UUID
@@ -13,6 +12,7 @@ from pebbenote.config import settings
 from pebbenote.db import get_db
 from pebbenote.notes.schemas import NoteModel
 from pebbenote.tables import ActionStatus
+from pebbenote.versioning import VersionConflict
 from pebbenote.worker import broker
 
 logger = getLogger(__name__)
@@ -60,18 +60,23 @@ async def apply_action_task(
 @broker.task(retry_on_error=True, max_retries=settings.ACTION_MAX_RETRIES)
 async def apply_instructions_task(
     note_id: str,
-    note_updated_at: str,
-    instructions: list[str],
     owner: str,
-    # Unused, but opens the session that commits when the task is done
     session: Annotated[AsyncSession, TaskiqDepends(get_db)],
     service: Annotated[NoteActionService, TaskiqDepends()],
+    reruns: int = 0,
 ) -> NoteModel | None:
     """
-    Applies just edited instructions to one note, scheduled with the note's
-    updated_at and the instructions of that moment. Skips the note when either
-    has changed since.
+    Applies the user's standing instructions to one note. Starts itself again
+    when the note or the instructions change while the LLM is busy.
     """
-    return await service.apply_instructions(
-        UUID(note_id), datetime.fromisoformat(note_updated_at), instructions
-    )
+    try:
+        return await service.apply_instructions(UUID(note_id))
+    except VersionConflict:
+        if reruns >= settings.ACTION_MAX_RERUNS:
+            raise
+        logger.info("Note %s or the instructions have changed, rerunning", note_id)
+        await session.rollback()
+        await apply_instructions_task.kiq(
+            note_id=note_id, owner=owner, reruns=reruns + 1
+        )
+        return None

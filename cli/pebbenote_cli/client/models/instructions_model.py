@@ -14,19 +14,24 @@ class InstructionsModel:
     """
     Attributes:
         instructions (list[str]):
+        version (int):
     """
 
     instructions: list[str]
+    version: int
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         instructions = self.instructions
+
+        version = self.version
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
                 "instructions": instructions,
+                "version": version,
             }
         )
 
@@ -37,8 +42,11 @@ class InstructionsModel:
         d = dict(src_dict)
         instructions = cast(list[str], d.pop("instructions"))
 
+        version = d.pop("version")
+
         instructions_model = cls(
             instructions=instructions,
+            version=version,
         )
 
         instructions_model.additional_properties = d

@@ -1,10 +1,10 @@
 from unittest import IsolatedAsyncioTestCase
 
-from sqlalchemy import select
-
 from pebbenote.db import get_test_db
 
+from .exceptions import InstructionsConflict
 from .repository import UserInstructionRepository
+from .schemas import InstructionsEditModel
 
 
 class UserInstructionRepositoryTestCase(IsolatedAsyncioTestCase):
@@ -13,45 +13,66 @@ class UserInstructionRepositoryTestCase(IsolatedAsyncioTestCase):
         self.repository = UserInstructionRepository(session=self.session, user="A")
         self.other = UserInstructionRepository(session=self.session, user="B")
 
-    async def test_list_is_scoped_to_user_and_ordered(self):
-        await self.repository.add_instruction("first")
-        await self.other.add_instruction("not mine")
-        await self.repository.add_instruction("second")
-
-        self.assertEqual(await self.repository.list_instructions(), ["first", "second"])
-        self.assertEqual(await self.other.list_instructions(), ["not mine"])
-
-    async def test_replace_sets_the_list(self):
-        await self.repository.add_instruction("old")
-        await self.other.add_instruction("not mine")
-
-        replaced = await self.repository.replace_instructions(["b", "a", "c"])
-
-        self.assertEqual(replaced, ["b", "a", "c"])
-        self.assertCountEqual(
-            await self.repository.list_instructions(), ["a", "b", "c"]
+    async def replace(self, repository: UserInstructionRepository, texts: list[str]):
+        """An edit by hand, based on the latest version"""
+        current = await repository.get_instructions()
+        return await repository.replace_instructions(
+            InstructionsEditModel(instructions=texts, base_version=current.version)
         )
-        self.assertEqual(await self.other.list_instructions(), ["not mine"])
+
+    async def test_starts_empty_at_version_one(self):
+        instructions = await self.repository.get_instructions()
+
+        self.assertEqual(instructions.instructions, [])
+        self.assertEqual(instructions.version, 1)
+
+    async def test_replace_sets_the_list_in_order(self):
+        await self.replace(self.repository, ["old"])
+        await self.replace(self.other, ["not mine"])
+
+        replaced = await self.replace(self.repository, ["b", "a", "c"])
+
+        self.assertEqual(replaced.instructions, ["b", "a", "c"])
+        self.assertEqual(replaced, await self.repository.get_instructions())
+        self.assertEqual(
+            (await self.other.get_instructions()).instructions, ["not mine"]
+        )
 
     async def test_replace_with_empty_list_clears(self):
-        await self.repository.add_instruction("old")
+        await self.replace(self.repository, ["old"])
 
-        await self.repository.replace_instructions([])
+        await self.replace(self.repository, [])
 
-        self.assertEqual(await self.repository.list_instructions(), [])
+        self.assertEqual((await self.repository.get_instructions()).instructions, [])
 
-    async def test_instructions_are(self):
-        async def instructions_are(texts: list[str]) -> bool:
-            condition = self.repository.instructions_are(texts)
-            return (await self.session.execute(select(condition))).scalar_one()
+    async def test_version_is_the_number_of_revisions(self):
+        first = await self.replace(self.repository, ["a"])
+        second = await self.replace(self.repository, ["a", "b"])
+        theirs = await self.replace(self.other, ["c"])
 
-        self.assertTrue(await instructions_are([]))
-        self.assertFalse(await instructions_are(["a"]))
+        self.assertEqual((first.version, second.version, theirs.version), (2, 3, 2))
 
-        await self.repository.replace_instructions(["a", "b"])
-        await self.other.add_instruction("c")
+    async def test_reordering_keeps_the_version(self):
+        await self.replace(self.repository, ["a", "b"])
 
-        self.assertTrue(await instructions_are(["b", "a"]))
-        self.assertFalse(await instructions_are(["a"]))
-        self.assertFalse(await instructions_are(["a", "b", "c"]))
-        self.assertFalse(await instructions_are([]))
+        reordered = await self.replace(self.repository, ["b", "a"])
+
+        self.assertEqual(reordered.version, 2)
+        self.assertEqual(reordered.instructions, ["a", "b"])
+
+    async def test_edit_of_an_old_version_conflicts(self):
+        current = await self.replace(self.repository, ["theirs"])
+
+        with self.assertRaises(InstructionsConflict) as ctx:
+            await self.repository.replace_instructions(
+                InstructionsEditModel(instructions=["mine"], base_version=1)
+            )
+
+        self.assertEqual(ctx.exception.current, current)
+        self.assertEqual(await self.repository.get_instructions(), current)
+
+    async def test_add_revision(self):
+        added = await self.repository.add_revision(["a"])
+
+        self.assertEqual(added.instructions, ["a"])
+        self.assertEqual(added.version, 2)

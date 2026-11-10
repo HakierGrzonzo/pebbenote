@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
+import type { InstructionsEditModel } from "../models/InstructionsEditModel";
 import type { InstructionsModel } from "../models/InstructionsModel";
 import type { CancelablePromise } from "../core/CancelablePromise";
 import type { BaseHttpRequest } from "../core/BaseHttpRequest";
@@ -21,15 +22,14 @@ export class InstructionsService {
   /**
    * Replace Instructions
    * Replaces the standing instructions. Unless `apply` is false, the new ones
-   * are then applied in the background to every note of the user that is not
-   * changed in the meantime.
+   * are then applied in the background to every note of the user.
    * @param requestBody
    * @param apply
    * @returns InstructionsModel Successful Response
    * @throws ApiError
    */
   public replaceInstructions(
-    requestBody: InstructionsModel,
+    requestBody: InstructionsEditModel,
     apply: boolean = true,
   ): CancelablePromise<InstructionsModel> {
     return this.httpRequest.request({
@@ -41,6 +41,7 @@ export class InstructionsService {
       body: requestBody,
       mediaType: "application/json",
       errors: {
+        409: `The instructions have changed since base_version`,
         422: `Validation Error`,
       },
     });

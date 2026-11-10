@@ -1,4 +1,3 @@
-from datetime import datetime
 from logging import getLogger
 from typing import Annotated
 from uuid import UUID
@@ -8,6 +7,7 @@ from fastapi import Depends
 from pebbenote.actions.repository import NoteActionRepository
 from pebbenote.actions.schemas import ActionEditModel, ActionModel
 from pebbenote.config import settings
+from pebbenote.instructions.exceptions import InstructionsConflict
 from pebbenote.instructions.repository import UserInstructionRepository
 from pebbenote.llm import ai_provider
 from pebbenote.llm.base import AIAdapter
@@ -68,12 +68,18 @@ class NoteActionService:
 
         if await self.ai.classify_input(action.action) == "instruction":
             instruction = await self.ai.rewrite_instruction(action.action)
-            await self.instruction_repository.add_instruction(instruction)
+            current = await self.instruction_repository.get_instructions()
+            await self.instruction_repository.claim_version(current.version)
+            await self.instruction_repository.add_revision(
+                [*current.instructions, instruction]
+            )
             preamble, user_message = apply_instructions_preamble, None
         else:
             preamble, user_message = apply_action_preamble, action.action
 
-        instructions = await self.instruction_repository.list_instructions()
+        instructions = (
+            await self.instruction_repository.get_instructions()
+        ).instructions
         response = await self.ai.get_completion(
             await self._build_chat(note.note_id, instructions, preamble, user_message)
         )
@@ -85,40 +91,31 @@ class NoteActionService:
             note.note_id, response, action.note_action_id
         )
 
-    async def apply_instructions(
-        self, note_id: UUID, note_updated_at: datetime, instructions: list[str]
-    ) -> NoteModel | None:
+    async def apply_instructions(self, note_id: UUID) -> NoteModel:
         """
         Applies the standing instructions to a note after they were edited.
 
-        Does nothing and returns None when the note or the instructions have
-        changed since the edit: the note's author or a newer job knows better.
-        note_updated_at and instructions are the ones of that edit.
+        One attempt: nothing is locked while the LLM is busy, so when the note
+        or the instructions change meanwhile it raises their VersionConflict
+        without having written anything, and is to be run again.
         """
-        unchanged = (
-            note_id,
-            note_updated_at,
-            self.instruction_repository.instructions_are(instructions),
-        )
-        # Only saves the LLM call, the check that counts is in the update
-        if not await self.note_repository.is_unchanged(*unchanged):
-            logger.info("Not applying instructions to %s, it is outdated", note_id)
-            return None
-
+        instructions = await self.instruction_repository.get_instructions()
         note = await self.note_repository.get_note_by_id(note_id)
+        if not instructions.instructions:
+            return note
+
         response = await self.ai.get_completion(
             await self._build_chat(
-                note_id, instructions, apply_instructions_preamble, None
+                note_id, instructions.instructions, apply_instructions_preamble, None
             )
         )
         if response.strip() == note.content:
             return note
 
-        # Nothing was locked while the LLM was busy: the update only goes
-        # through if the note and the instructions are still the same
-        if not await self.note_repository.take_unchanged_note(*unchanged):
-            logger.info("Not applying instructions to %s, it has changed", note_id)
-            return None
+        await self.note_repository.claim_version(note_id, note.version)
+        latest = await self.instruction_repository.get_instructions()
+        if latest.version != instructions.version:
+            raise InstructionsConflict(latest)
 
         action = await self.action_repository.add_action(
             note_id, apply_instructions_action_text

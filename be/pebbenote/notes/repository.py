@@ -1,7 +1,6 @@
-from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Select, desc, func, update
+from sqlalchemy import Select, desc, func, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 
 from pebbenote.auth import CurrentUser
@@ -62,6 +61,8 @@ class NoteRepository:
                 NoteRevision.note_revision_id == latest_revision_id.c.note_revision_id,
             )
             .where(Note.owner == self.user)
+            # A job reads the note again after the LLM call, in one session
+            .execution_options(populate_existing=True)
         )
 
     @classmethod
@@ -178,47 +179,6 @@ class NoteRepository:
         if note_model.content.strip() == note.content:
             return note
         return await self.add_revision(note.note_id, note_model.content)
-
-    def _unchanged_note(
-        self, note_id: UUID, updated_at: datetime, *conditions: ColumnElement[bool]
-    ) -> list[ColumnElement[bool]]:
-        return [
-            Note.note_id == note_id,
-            Note.owner == self.user,
-            Note.updated_at == updated_at,
-            *conditions,
-        ]
-
-    async def is_unchanged(
-        self, note_id: UUID, updated_at: datetime, *conditions: ColumnElement[bool]
-    ) -> bool:
-        """
-        Whether take_unchanged_note would succeed now. Only a hint, to skip
-        work that is already known to be thrown away.
-        """
-        query = Select(Note.note_id).where(
-            *self._unchanged_note(note_id, updated_at, *conditions)
-        )
-        return (await self.session.execute(query)).scalar_one_or_none() is not None
-
-    async def take_unchanged_note(
-        self, note_id: UUID, updated_at: datetime, *conditions: ColumnElement[bool]
-    ) -> bool:
-        """
-        Marks the note as changed now, but only if it was not changed since
-        updated_at and the extra conditions hold. Says whether it did; then
-        the note is locked for the caller's edit.
-
-        The check is the WHERE clause of the update, so nothing can change in
-        between and no lock has to be held before.
-        """
-        taken = await self.session.execute(
-            update(Note)
-            .where(*self._unchanged_note(note_id, updated_at, *conditions))
-            .values(updated_at=utc_now())
-            .returning(Note.note_id)
-        )
-        return taken.scalar_one_or_none() is not None
 
     async def create_note(self, note_model: NoteEditModel) -> NoteModel:
         note = Note(owner=self.user)

@@ -1,9 +1,12 @@
 from unittest import IsolatedAsyncioTestCase
 
 from pebbenote.db import get_test_db
+from pebbenote.instructions.exceptions import InstructionsConflict
 from pebbenote.instructions.repository import UserInstructionRepository
+from pebbenote.instructions.schemas import InstructionsEditModel
 from pebbenote.llm.mock import MockAdapter
 from pebbenote.llm.schemas import Chat
+from pebbenote.notes.exceptions import NoteConflict
 from pebbenote.notes.repository import NoteRepository
 from pebbenote.notes.schemas import NoteUpdateModel
 from pebbenote.tables import ActionStatus
@@ -43,6 +46,16 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
             "default", NoteUpdateModel(content=content, base_version=note.version)
         )
 
+    async def set_instructions(self, texts: list[str]):
+        """An edit by hand of the instructions, based on their latest version"""
+        current = await self.instructions.get_instructions()
+        return await self.instructions.replace_instructions(
+            InstructionsEditModel(instructions=texts, base_version=current.version)
+        )
+
+    async def stored_instructions(self) -> list[str]:
+        return (await self.instructions.get_instructions()).instructions
+
     def called_chat(self) -> Chat:
         chat = self.ai.get_called_with()
         assert isinstance(chat, Chat)
@@ -51,7 +64,7 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
     async def test_note_input_is_not_stored(self):
         await self.run_action("add milk")
 
-        self.assertEqual(await self.instructions.list_instructions(), [])
+        self.assertEqual(await self.stored_instructions(), [])
         chat = self.called_chat()
         self.assertEqual(chat.messages[-1].content, "add milk")
         self.assertNotIn("assistant", [m.kind for m in chat.messages])
@@ -62,9 +75,7 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
 
         note = await self.run_action("sort groceries")
 
-        self.assertEqual(
-            await self.instructions.list_instructions(), ["I should sort groceries."]
-        )
+        self.assertEqual(await self.stored_instructions(), ["I should sort groceries."])
         self.assertEqual(note.content, "- result")
         chat = self.called_chat()
         assistant = [m for m in chat.messages if m.kind == "assistant"]
@@ -73,7 +84,7 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
         self.assertNotEqual(chat.messages[-1].kind, "user")
 
     async def test_stored_instructions_reach_note_edits(self):
-        await self.instructions.add_instruction("I should sort groceries.")
+        await self.set_instructions(["I should sort groceries."])
 
         await self.run_action("add milk")
 
@@ -121,7 +132,7 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
             await self.service.apply_action(pending.note_action_id)
         await savepoint.rollback()
 
-        self.assertEqual(await self.instructions.list_instructions(), [])
+        self.assertEqual(await self.stored_instructions(), [])
         note = await self.notes.get_note_by_id("default")
         self.assertEqual(note.content, before.content)
         action = await self.actions.get_action(pending.note_action_id)
@@ -172,94 +183,82 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
         self.assertEqual(revisions[-1].content, "- result")
 
     async def test_edited_instructions_are_applied(self):
-        await self.instructions.replace_instructions(["I should shout.", "I sort."])
+        await self.set_instructions(["I should shout.", "I sort."])
         before = await self.notes.get_note_by_id("default")
 
-        # The order of the instructions does not matter
-        note = await self.service.apply_instructions(
-            before.note_id, before.updated_at, ["I sort.", "I should shout."]
-        )
+        note = await self.service.apply_instructions(before.note_id)
 
-        assert note is not None
         self.assertEqual(note.content, "- result")
+        self.assertEqual(note.version, before.version + 1)
         messages = self.called_chat().messages
         self.assertEqual(messages[-1].content, apply_instructions_preamble)
         self.assertIn("I should shout.", messages[-2].content)
         revisions = await self.notes.list_revisions("default", 10)
         self.assertEqual(revisions[-1].action, apply_instructions_action_text)
 
-    async def test_instructions_are_not_applied_to_a_changed_note(self):
-        await self.instructions.replace_instructions(["I should shout."])
-        before = await self.notes.get_note_by_id("default")
-        await self.edit_note("- by hand")
-
-        note = await self.service.apply_instructions(
-            before.note_id, before.updated_at, ["I should shout."]
-        )
-
-        self.assertIsNone(note)
-        with self.assertRaises(Exception):
-            self.ai.get_called_with()
-        after = await self.notes.get_note_by_id("default")
-        self.assertEqual(after.content, "- by hand")
-
-    async def test_outdated_instructions_are_not_applied(self):
-        await self.instructions.replace_instructions(["I should whisper."])
+    async def test_without_instructions_the_llm_is_not_asked(self):
         before = await self.notes.get_note_by_id("default")
 
-        note = await self.service.apply_instructions(
-            before.note_id, before.updated_at, ["I should shout."]
-        )
+        note = await self.service.apply_instructions(before.note_id)
 
-        self.assertIsNone(note)
+        self.assertEqual(note, before)
         with self.assertRaises(Exception):
             self.ai.get_called_with()
 
     async def test_note_following_the_instructions_is_left_alone(self):
-        await self.instructions.replace_instructions(["I should shout."])
+        await self.set_instructions(["I should shout."])
         before = await self.notes.get_note_by_id("default")
         self.ai.set_result(f"{before.content}\n")
 
-        note = await self.service.apply_instructions(
-            before.note_id, before.updated_at, ["I should shout."]
-        )
+        note = await self.service.apply_instructions(before.note_id)
 
         self.assertEqual(note, before)
         self.assertEqual(await self.actions.list_actions(before.note_id), [])
         self.assertEqual(len(await self.notes.list_revisions("default", 10)), 1)
 
-    async def apply_instructions_while(self, change):
-        """Applies the instructions, with `change` happening during the LLM call"""
-        await self.instructions.replace_instructions(["I should shout."])
-        before = await self.notes.get_note_by_id("default")
+    def during_completion(self, change):
+        """Makes `change` happen while the LLM is busy, on its first call only"""
+        complete = self.ai.get_completion
+        changes = iter([change])
 
         async def completion(chat: Chat) -> str:
-            await change()
-            return "- result"
+            for pending_change in changes:
+                await pending_change()
+            return await complete(chat)
 
         self.ai.get_completion = completion  # type: ignore[method-assign]
 
-        note = await self.service.apply_instructions(
-            before.note_id, before.updated_at, ["I should shout."]
-        )
-        return note, before
+    async def test_instructions_edited_during_completion_conflict(self):
+        await self.set_instructions(["I should shout."])
+        before = await self.notes.get_note_by_id("default")
+        self.during_completion(lambda: self.set_instructions(["I should whisper."]))
 
-    async def test_instructions_edited_during_completion_are_not_applied(self):
-        note, before = await self.apply_instructions_while(
-            lambda: self.instructions.replace_instructions(["I should whisper."])
-        )
+        with self.assertRaises(InstructionsConflict):
+            await self.service.apply_instructions(before.note_id)
 
-        self.assertIsNone(note)
-        after = await self.notes.get_note_by_id("default")
-        self.assertEqual(after.content, before.content)
+        # Nothing was written, the job is run again with the new instructions
+        self.assertEqual(await self.notes.get_note_by_id("default"), before)
         self.assertEqual(await self.actions.list_actions(before.note_id), [])
 
-    async def test_note_edited_during_completion_is_kept(self):
-        note, before = await self.apply_instructions_while(
-            lambda: self.edit_note("- mine")
-        )
+        note = await self.service.apply_instructions(before.note_id)
 
-        self.assertIsNone(note)
-        after = await self.notes.get_note_by_id("default")
-        self.assertEqual(after.content, "- mine")
+        self.assertEqual(note.content, "- result")
+        self.assertIn("I should whisper.", self.called_chat().messages[-2].content)
+
+    async def test_note_edited_during_completion_conflicts(self):
+        await self.set_instructions(["I should shout."])
+        before = await self.notes.get_note_by_id("default")
+        self.during_completion(lambda: self.edit_note("- mine"))
+
+        with self.assertRaises(NoteConflict) as ctx:
+            await self.service.apply_instructions(before.note_id)
+
+        # The edit is kept, the job is run again on top of it
+        self.assertEqual(ctx.exception.current.content, "- mine")
         self.assertEqual(await self.actions.list_actions(before.note_id), [])
+
+        note = await self.service.apply_instructions(before.note_id)
+
+        self.assertEqual(note.content, "- result")
+        contents = [m.content for m in self.called_chat().messages if m.kind == "user"]
+        self.assertTrue(any("- mine" in content for content in contents))

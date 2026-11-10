@@ -8,6 +8,7 @@ from . import cli
 from .client.api.instructions import list_instructions, replace_instructions
 from .client.api.notes import edit_note_by_id, get_note_by_id, list_notes
 from .client.models import (
+    InstructionsEditModel,
     InstructionsModel,
     NoteModel,
     NoteUpdateModel,
@@ -27,7 +28,9 @@ NOTE = NoteViewModel(
     version=3,
     actions=[],
 )
-INSTRUCTIONS = InstructionsModel(instructions=["use metric units", "sort by aisle"])
+INSTRUCTIONS = InstructionsModel(
+    instructions=["use metric units", "sort by aisle"], version=4
+)
 INSTRUCTIONS_TEXT = "- use metric units\n- sort by aisle\n"
 
 
@@ -140,7 +143,9 @@ class MainTestCase(TestCase):
         self.call.assert_called_with(
             CONFIG,
             replace_instructions,
-            body=InstructionsModel(instructions=["sort by aisle", "write in Polish"]),
+            body=InstructionsEditModel(
+                instructions=["sort by aisle", "write in Polish"], base_version=4
+            ),
             apply=True,
         )
         self.assertIn("Instructions synced (2); notes will be updated", stderr)
@@ -153,7 +158,9 @@ class MainTestCase(TestCase):
         self.call.assert_called_with(
             CONFIG,
             replace_instructions,
-            body=InstructionsModel(instructions=["write in Polish"]),
+            body=InstructionsEditModel(
+                instructions=["write in Polish"], base_version=4
+            ),
             apply=False,
         )
         self.assertIn("Instructions synced (1).", stderr)
@@ -166,7 +173,7 @@ class MainTestCase(TestCase):
         self.call.assert_called_with(
             CONFIG,
             replace_instructions,
-            body=InstructionsModel(instructions=[]),
+            body=InstructionsEditModel(instructions=[], base_version=4),
             apply=True,
         )
         self.assertIn("Instructions synced (0).", stderr)

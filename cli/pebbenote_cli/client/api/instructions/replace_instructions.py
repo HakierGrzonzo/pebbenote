@@ -6,13 +6,15 @@ import httpx
 from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.http_validation_error import HTTPValidationError
+from ...models.instructions_conflict_model import InstructionsConflictModel
+from ...models.instructions_edit_model import InstructionsEditModel
 from ...models.instructions_model import InstructionsModel
 from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
-    body: InstructionsModel,
+    body: InstructionsEditModel,
     apply: bool | Unset = True,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
@@ -39,11 +41,16 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> HTTPValidationError | InstructionsModel | None:
+) -> HTTPValidationError | InstructionsConflictModel | InstructionsModel | None:
     if response.status_code == 200:
         response_200 = InstructionsModel.from_dict(response.json())
 
         return response_200
+
+    if response.status_code == 409:
+        response_409 = InstructionsConflictModel.from_dict(response.json())
+
+        return response_409
 
     if response.status_code == 422:
         response_422 = HTTPValidationError.from_dict(response.json())
@@ -58,7 +65,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[HTTPValidationError | InstructionsModel]:
+) -> Response[HTTPValidationError | InstructionsConflictModel | InstructionsModel]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -70,25 +77,24 @@ def _build_response(
 def sync_detailed(
     *,
     client: AuthenticatedClient,
-    body: InstructionsModel,
+    body: InstructionsEditModel,
     apply: bool | Unset = True,
-) -> Response[HTTPValidationError | InstructionsModel]:
+) -> Response[HTTPValidationError | InstructionsConflictModel | InstructionsModel]:
     """Replace Instructions
 
      Replaces the standing instructions. Unless `apply` is false, the new ones
-    are then applied in the background to every note of the user that is not
-    changed in the meantime.
+    are then applied in the background to every note of the user.
 
     Args:
         apply (bool | Unset):  Default: True.
-        body (InstructionsModel):
+        body (InstructionsEditModel):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[HTTPValidationError | InstructionsModel]
+        Response[HTTPValidationError | InstructionsConflictModel | InstructionsModel]
     """
 
     kwargs = _get_kwargs(
@@ -106,25 +112,24 @@ def sync_detailed(
 def sync(
     *,
     client: AuthenticatedClient,
-    body: InstructionsModel,
+    body: InstructionsEditModel,
     apply: bool | Unset = True,
-) -> HTTPValidationError | InstructionsModel | None:
+) -> HTTPValidationError | InstructionsConflictModel | InstructionsModel | None:
     """Replace Instructions
 
      Replaces the standing instructions. Unless `apply` is false, the new ones
-    are then applied in the background to every note of the user that is not
-    changed in the meantime.
+    are then applied in the background to every note of the user.
 
     Args:
         apply (bool | Unset):  Default: True.
-        body (InstructionsModel):
+        body (InstructionsEditModel):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        HTTPValidationError | InstructionsModel
+        HTTPValidationError | InstructionsConflictModel | InstructionsModel
     """
 
     return sync_detailed(
@@ -137,25 +142,24 @@ def sync(
 async def asyncio_detailed(
     *,
     client: AuthenticatedClient,
-    body: InstructionsModel,
+    body: InstructionsEditModel,
     apply: bool | Unset = True,
-) -> Response[HTTPValidationError | InstructionsModel]:
+) -> Response[HTTPValidationError | InstructionsConflictModel | InstructionsModel]:
     """Replace Instructions
 
      Replaces the standing instructions. Unless `apply` is false, the new ones
-    are then applied in the background to every note of the user that is not
-    changed in the meantime.
+    are then applied in the background to every note of the user.
 
     Args:
         apply (bool | Unset):  Default: True.
-        body (InstructionsModel):
+        body (InstructionsEditModel):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[HTTPValidationError | InstructionsModel]
+        Response[HTTPValidationError | InstructionsConflictModel | InstructionsModel]
     """
 
     kwargs = _get_kwargs(
@@ -171,25 +175,24 @@ async def asyncio_detailed(
 async def asyncio(
     *,
     client: AuthenticatedClient,
-    body: InstructionsModel,
+    body: InstructionsEditModel,
     apply: bool | Unset = True,
-) -> HTTPValidationError | InstructionsModel | None:
+) -> HTTPValidationError | InstructionsConflictModel | InstructionsModel | None:
     """Replace Instructions
 
      Replaces the standing instructions. Unless `apply` is false, the new ones
-    are then applied in the background to every note of the user that is not
-    changed in the meantime.
+    are then applied in the background to every note of the user.
 
     Args:
         apply (bool | Unset):  Default: True.
-        body (InstructionsModel):
+        body (InstructionsEditModel):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        HTTPValidationError | InstructionsModel
+        HTTPValidationError | InstructionsConflictModel | InstructionsModel
     """
 
     return (
