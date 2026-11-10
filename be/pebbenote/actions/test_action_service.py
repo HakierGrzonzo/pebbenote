@@ -1,5 +1,7 @@
+from datetime import timedelta
 from unittest import IsolatedAsyncioTestCase
 
+from pebbenote.config import settings
 from pebbenote.db import get_test_db
 from pebbenote.instructions.exceptions import InstructionsConflict
 from pebbenote.instructions.repository import UserInstructionRepository
@@ -9,7 +11,7 @@ from pebbenote.llm.schemas import Chat
 from pebbenote.notes.exceptions import NoteConflict
 from pebbenote.notes.repository import NoteRepository
 from pebbenote.notes.schemas import NoteUpdateModel
-from pebbenote.tables import ActionStatus
+from pebbenote.tables import ActionStatus, NoteAction, utc_now
 
 from .action_service import NoteActionService
 from .prompts import apply_instructions_action_text, apply_instructions_preamble
@@ -120,6 +122,16 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
 
         self.assertEqual(note.content, "- result")
         self.assertIsNone(next_action)
+
+    async def test_done_action_run_again_hands_over_again(self):
+        # A retry after starting the next action failed
+        first = await self.enqueue("add milk")
+        second = await self.enqueue("add eggs")
+        await self.service.apply_action(first.note_action_id)
+
+        _, next_action = await self.service.apply_action(first.note_action_id)
+
+        self.assertEqual(next_action, second.note_action_id)
 
     async def test_failed_completion_writes_nothing(self):
         self.ai.input_kind = "instruction"
@@ -232,20 +244,54 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
         )
 
     async def test_only_the_first_action_of_a_queue_is_started(self):
-        first, first_is_head = await self.service.enqueue_action(
+        first, first_start = await self.service.enqueue_action(
             ActionEditModel(note_id="default", action="add milk")
         )
-        second, second_is_head = await self.service.enqueue_action(
+        second, second_start = await self.service.enqueue_action(
             ActionEditModel(note_id="default", action="add eggs")
         )
 
-        self.assertTrue(first_is_head)
-        self.assertFalse(second_is_head)
+        self.assertEqual(first_start, first.note_action_id)
+        self.assertIsNone(second_start)
         actions = await self.actions.list_actions(first.note_id)
         self.assertEqual(
             [a.note_action_id for a in actions],
             [first.note_action_id, second.note_action_id],
         )
+
+    async def make_stale(self, action_id):
+        action = await self.session.get_one(NoteAction, action_id)
+        action.updated_at = utc_now() - timedelta(
+            seconds=settings.ACTION_STALE_SECONDS + 1
+        )
+        await self.session.flush()
+
+    async def test_a_stale_head_is_started_again(self):
+        first = await self.enqueue("add milk")
+        await self.make_stale(first.note_action_id)
+
+        _, start = await self.service.enqueue_action(
+            ActionEditModel(note_id="default", action="add eggs")
+        )
+
+        self.assertEqual(start, first.note_action_id)
+        # Marked as started, the next enqueue leaves it alone
+        _, start = await self.service.enqueue_action(
+            ActionEditModel(note_id="default", action="add flour")
+        )
+        self.assertIsNone(start)
+
+    async def test_the_hand_off_marks_the_next_action_started(self):
+        first = await self.enqueue("add milk")
+        second = await self.enqueue("add eggs")
+        await self.make_stale(second.note_action_id)
+
+        await self.service.apply_action(first.note_action_id)
+
+        _, start = await self.service.enqueue_action(
+            ActionEditModel(note_id="default", action="add flour")
+        )
+        self.assertIsNone(start)
 
     async def test_applied_action_hands_over_to_the_next(self):
         first = await self.enqueue("add milk")
@@ -273,19 +319,19 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
         self.assertEqual(next_action, second.note_action_id)
         action = await self.actions.get_action(first.note_action_id)
         self.assertEqual(action.status, ActionStatus.failed)
-        enqueued, is_head = await self.service.enqueue_action(
+        _, start = await self.service.enqueue_action(
             ActionEditModel(note_id="default", action="add flour")
         )
-        self.assertFalse(is_head)
+        self.assertIsNone(start)
 
     async def test_a_new_action_after_a_finished_queue_is_started(self):
         await self.run_action("add milk")
 
-        _, is_head = await self.service.enqueue_action(
+        enqueued, start = await self.service.enqueue_action(
             ActionEditModel(note_id="default", action="add eggs")
         )
 
-        self.assertTrue(is_head)
+        self.assertEqual(start, enqueued.note_action_id)
 
     async def test_edited_instructions_are_applied(self):
         await self.set_instructions(["I should shout.", "I sort."])

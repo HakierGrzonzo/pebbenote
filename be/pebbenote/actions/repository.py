@@ -71,6 +71,15 @@ class NoteActionRepository:
 
         return self.map_action(action)
 
+    async def touch(self, action_id: UUID) -> None:
+        """
+        Marks a pending action as started now. Its updated_at tells whether
+        its task may have been lost.
+        """
+        action = await self.session.get_one(NoteAction, action_id)
+        action.updated_at = utc_now()
+        await self.session.flush()
+
     async def set_status(self, action_id: UUID, status: ActionStatus) -> ActionModel:
         action = await self.session.get_one(NoteAction, action_id)
         action.status = status

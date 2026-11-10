@@ -37,15 +37,14 @@ async def apply_action(
     user: CurrentUser,
     payload: ActionEditModel,
 ) -> NoteModel | JSONResponse:
-    action, is_head = await service.enqueue_action(payload)
+    action, start_id = await service.enqueue_action(payload)
     # The worker uses its own connection, so the action must be visible first
     await session.commit()
 
+    if start_id is not None:
+        task = await apply_action_task.kiq(action_id=str(start_id), owner=user)
     # An action behind others is started by the one before it, don't wait
-    if is_head:
-        task = await apply_action_task.kiq(
-            action_id=str(action.note_action_id), owner=user
-        )
+    if start_id == action.note_action_id:
         try:
             result = await task.wait_result(timeout=settings.ACTION_WAIT_SECONDS)
             # No note when the action has to run again

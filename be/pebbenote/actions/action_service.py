@@ -1,3 +1,4 @@
+from datetime import timedelta
 from logging import getLogger
 from typing import Annotated
 from uuid import UUID
@@ -14,7 +15,7 @@ from pebbenote.llm.base import AIAdapter
 from pebbenote.llm.schemas import Chat, Message
 from pebbenote.notes.repository import NoteRepository
 from pebbenote.notes.schemas import NoteModel
-from pebbenote.tables import ActionStatus
+from pebbenote.tables import ActionStatus, utc_now
 
 from .history import build_history
 from .prompts import (
@@ -43,13 +44,14 @@ class NoteActionService:
 
     async def enqueue_action(
         self, action_model: ActionEditModel
-    ) -> tuple[ActionModel, bool]:
+    ) -> tuple[ActionModel, UUID | None]:
         """
         Stores the action as pending, at the end of its note's queue. The LLM
         part runs in apply_action, one action of a note at a time.
 
-        Also says whether the action is the head of the queue and has to be
-        started now. Otherwise the action before it starts it when done.
+        Also returns the action whose task has to be started now: the new one
+        when it is the head of the queue, or a head whose task looks lost.
+        Otherwise the action before the new one starts it when done.
         """
         # Resolves "default" and checks ownership before touching actions
         note = await self.note_repository.get_note_by_id(action_model.note_id)
@@ -60,8 +62,19 @@ class NoteActionService:
         action = await self.action_repository.add_action(
             note.note_id, action_model.action, ActionStatus.pending
         )
-        head = await self.action_repository.first_pending(note.note_id)
-        return action, head == action.note_action_id
+        head_id = await self.action_repository.first_pending(note.note_id)
+        if head_id is None or head_id == action.note_action_id:
+            return action, head_id
+
+        # The head's task, or the hand-off to it, may have been lost. Starting
+        # it twice is safe, the second run finds it done or conflicts.
+        head = await self.action_repository.get_action(head_id)
+        stale_since = utc_now() - timedelta(seconds=settings.ACTION_STALE_SECONDS)
+        if head.updated_at < stale_since:
+            logger.warning("Restarting action %s, its task looks lost", head_id)
+            await self.action_repository.touch(head_id)
+            return action, head_id
+        return action, None
 
     async def apply_action(self, action_id: UUID) -> tuple[NoteModel, UUID | None]:
         """
@@ -76,8 +89,9 @@ class NoteActionService:
         note = await self.note_repository.get_note_by_id(action.note_id)
 
         if action.status != ActionStatus.pending:
-            # Delivered twice, the first run has started the next action
-            return note, None
+            # Delivered twice, or a retry after starting the next action
+            # failed: hand over again, a duplicate start is safe
+            return note, await self._next_action(note.note_id)
 
         instructions = await self.instruction_repository.get_instructions()
         instruction_texts = instructions.instructions
@@ -106,7 +120,7 @@ class NoteActionService:
         note = await self.note_repository.add_revision(
             note.note_id, response, action.note_action_id
         )
-        return note, await self.action_repository.first_pending(note.note_id)
+        return note, await self._next_action(note.note_id)
 
     async def fail_action(self, action_id: UUID) -> UUID | None:
         """
@@ -117,7 +131,14 @@ class NoteActionService:
         await self.note_repository.lock_note(action.note_id)
 
         await self.action_repository.set_status(action_id, ActionStatus.failed)
-        return await self.action_repository.first_pending(action.note_id)
+        return await self._next_action(action.note_id)
+
+    async def _next_action(self, note_id: UUID) -> UUID | None:
+        """The head of the note's queue, marked as started"""
+        next_id = await self.action_repository.first_pending(note_id)
+        if next_id is not None:
+            await self.action_repository.touch(next_id)
+        return next_id
 
     async def apply_instructions(self, note_id: UUID) -> NoteModel:
         """
