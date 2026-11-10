@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import distinct_on, insert
 from pebbenote.auth import CurrentUser
 from pebbenote.db import DbSession
 
-from ..tables import Note, NoteAction, NoteRevision, utc_now
+from ..tables import Note, NoteAction, NoteRevision
 from .exceptions import NoteConflict, NoteDoesNotExist
 from .schemas import NoteEditModel, NoteModel, NoteRevisionModel, NoteUpdateModel
 from .types import NoteId
@@ -71,7 +71,7 @@ class NoteRepository:
             note_id=note.note_id,
             content=revision.note_text,
             is_default=note.is_default,
-            updated_at=note.updated_at,
+            updated_at=revision.created_at,
             version=version,
         )
 
@@ -95,8 +95,6 @@ class NoteRepository:
                 note_id=note.note_id, note_text=text.strip(), note_action_id=action_id
             )
         )
-        # The note row itself is unchanged, bump it for Last-Modified
-        note.updated_at = utc_now()
         await self.session.flush()
 
         return await self.get_note_by_id(note.note_id)

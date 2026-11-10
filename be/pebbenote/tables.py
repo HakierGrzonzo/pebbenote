@@ -47,14 +47,13 @@ class Note(Base):
         Uuid, primary_key=True, server_default=func.gen_random_uuid()
     )
     actions: Mapped[list["NoteAction"]] = relationship(back_populates="note")
-    # The content of a note is the text of its latest revision
+    # The content of a note is the text of its latest revision, which is
+    # also when the note was last updated
     revisions: Mapped[list["NoteRevision"]] = relationship(back_populates="note")
 
     owner = mapped_column(Text, nullable=False)
 
     is_default = mapped_column(Boolean, nullable=False, server_default=false())
-
-    updated_at = updated_at_column()
 
     __table_args__ = (
         # At most one default note per owner
