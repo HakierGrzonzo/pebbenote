@@ -69,15 +69,16 @@ function encodeNote(note: string) {
 let shown = { noteId: "", version: 0, content: "" };
 
 // Sends the note unless the watch already has this version or a newer one.
-// With force the same version is sent again, for its extra keys.
+// With force the same version is sent again, for its extra keys. Says
+// whether it was sent.
 function sendNote(
   note: NoteModel,
   extra: Record<string, number> = {},
   force = false,
-) {
+): boolean {
   if (note.note_id === shown.noteId) {
-    if (note.version < shown.version) return;
-    if (note.version === shown.version && !force) return;
+    if (note.version < shown.version) return false;
+    if (note.version === shown.version && !force) return false;
   }
   shown = {
     noteId: note.note_id,
@@ -85,6 +86,7 @@ function sendNote(
     content: note.content,
   };
   PebbleTS.sendAppMessage({ ...encodeNote(note.content), ...extra });
+  return true;
 }
 
 function isPending(note: NoteViewModel) {
@@ -170,7 +172,12 @@ async function pollNote(noteId: string, lastModified?: string) {
     if (lastFinished(note)?.status === ActionStatus.FAILED) {
       PebbleTS.sendAppMessage({ Status: "AI failed, try again" });
     } else {
-      sendNote(note, { Vibe: 1, Processing: 0 });
+      const done = { Vibe: 1, Processing: 0 };
+      // A delete may have sent this version or a newer one already, the
+      // banner has to go all the same. The watch takes keys only with a note.
+      if (!sendNote(note, done, true)) {
+        PebbleTS.sendAppMessage({ ...encodeNote(shown.content), ...done });
+      }
     }
     return;
   }
@@ -229,7 +236,9 @@ async function deleteNoteLines(indexes: number[]) {
     for (let attempt = 1; ; attempt++) {
       try {
         const updated = await notes.editNoteById(base.noteId, edit);
-        sendNote(updated, {}, true);
+        // The watch drops notes while deletes are queued, maybe the poller's
+        // last one: this one has to say whether actions are still running
+        sendNote(updated, { Processing: polling ? 1 : 0 }, true);
         return;
       } catch (e) {
         const conflict = e instanceof ApiError && e.status === 409;
