@@ -1,6 +1,7 @@
 import {
   ActionAcceptedModel,
   ActionEditModel,
+  ActionModel,
   ActionStatus,
   ApiError,
   AppClient,
@@ -82,10 +83,18 @@ function sendNote(
 }
 
 function isPending(note: NoteViewModel) {
-  // The backend applies the actions of a note in order: while the latest
-  // one is pending the note is still being worked on, after it none is left
-  const latest = note.actions[note.actions.length - 1];
-  return latest?.status === ActionStatus.PENDING;
+  // Not just the latest action: applying the instructions adds a done one
+  // while dictated ones can still be queued
+  return note.actions.some((a) => a.status === ActionStatus.PENDING);
+}
+
+// The action that finished last, the one the poller reports on
+function lastFinished(note: NoteViewModel) {
+  const time = (a: ActionModel) => Date.parse(a.updated_at);
+  return note.actions.reduce<ActionModel | undefined>(
+    (latest, a) => (!latest || time(a) > time(latest) ? a : latest),
+    undefined,
+  );
 }
 
 async function refreshNote() {
@@ -153,8 +162,7 @@ async function pollNote(noteId: string, lastModified?: string) {
       continue;
     }
 
-    const latest = note.actions[note.actions.length - 1];
-    if (latest?.status === ActionStatus.FAILED) {
+    if (lastFinished(note)?.status === ActionStatus.FAILED) {
       PebbleTS.sendAppMessage({ Status: "AI failed, try again" });
     } else {
       sendNote(note, { Vibe: 1, Processing: 0 });
