@@ -1,9 +1,12 @@
-from sqlalchemy import Select, desc, func
-from sqlalchemy.dialects.postgresql import distinct_on, insert
+from uuid import UUID
+
+from sqlalchemy import Select
+from sqlalchemy.dialects.postgresql import insert
 
 from pebbenote.auth import CurrentUser
 from pebbenote.db import DbSession
 from pebbenote.tables import InstructionList, InstructionRevision
+from pebbenote.versioning import claim_version, latest_revisions
 
 from .exceptions import InstructionsConflict
 from .schemas import InstructionsEditModel, InstructionsModel
@@ -20,38 +23,17 @@ class UserInstructionRepository:
         self.user = user
 
     def _select_list(self) -> Select[tuple[InstructionList, InstructionRevision, int]]:
-        version = func.row_number().over(
-            partition_by=InstructionRevision.instruction_list_id,
-            order_by=(
-                InstructionRevision.created_at,
-                InstructionRevision.instruction_revision_id,
-            ),
-        )
-        latest_revision_id = (
-            Select(
-                InstructionRevision.instruction_list_id,
-                InstructionRevision.instruction_revision_id,
-                version.label("version"),
-            )
-            .ext(distinct_on(InstructionRevision.instruction_list_id))
-            .order_by(
-                InstructionRevision.instruction_list_id,
-                desc(InstructionRevision.created_at),
-                desc(InstructionRevision.instruction_revision_id),
-            )
-            .cte("latest_revision_id")
+        latest = latest_revisions(
+            InstructionRevision.instruction_list_id,
+            InstructionRevision.instruction_revision_id,
+            InstructionRevision.created_at,
         )
         return (
-            Select(InstructionList, InstructionRevision, latest_revision_id.c.version)
-            .join(
-                latest_revision_id,
-                latest_revision_id.c.instruction_list_id
-                == InstructionList.instruction_list_id,
-            )
+            Select(InstructionList, InstructionRevision, latest.c.version)
+            .join(latest, latest.c.parent_id == InstructionList.instruction_list_id)
             .join(
                 InstructionRevision,
-                InstructionRevision.instruction_revision_id
-                == latest_revision_id.c.instruction_revision_id,
+                InstructionRevision.instruction_revision_id == latest.c.revision_id,
             )
             .where(InstructionList.owner == self.user)
         )
@@ -101,21 +83,19 @@ class UserInstructionRepository:
         list is locked for the caller's write, until the transaction ends.
         """
         instruction_list, _, _ = await self._raw_get_instructions()
+        return await claim_version(
+            lambda: self._lock_list(instruction_list.instruction_list_id),
+            self.get_instructions,
+            base_version,
+            InstructionsConflict,
+        )
+
+    async def _lock_list(self, instruction_list_id: UUID) -> None:
         await self.session.execute(
             Select(InstructionList.instruction_list_id)
-            .where(
-                InstructionList.instruction_list_id
-                == instruction_list.instruction_list_id
-            )
+            .where(InstructionList.instruction_list_id == instruction_list_id)
             .with_for_update()
         )
-        # Read again in a new statement: it sees what a writer that held the
-        # lock before has committed
-        instructions = await self.get_instructions()
-        if instructions.version != base_version:
-            raise InstructionsConflict(instructions)
-
-        return instructions
 
     async def add_revision(self, instruction_texts: list[str]) -> InstructionsModel:
         """

@@ -1,10 +1,11 @@
 from uuid import UUID
 
-from sqlalchemy import Select, desc, func, update
-from sqlalchemy.dialects.postgresql import distinct_on, insert
+from sqlalchemy import Select, desc, update
+from sqlalchemy.dialects.postgresql import insert
 
 from pebbenote.auth import CurrentUser
 from pebbenote.db import DbSession
+from pebbenote.versioning import claim_version, latest_revisions
 
 from ..tables import Note, NoteAction, NoteRevision
 from .exceptions import NoteConflict, NoteDoesNotExist
@@ -35,31 +36,13 @@ class NoteRepository:
         The user's notes with their latest revision, which holds the content,
         and their version: the number of that revision
         """
-        version = func.row_number().over(
-            partition_by=NoteRevision.note_id,
-            order_by=(NoteRevision.created_at, NoteRevision.note_revision_id),
-        )
-        latest_revision_id = (
-            Select(
-                NoteRevision.note_id,
-                NoteRevision.note_revision_id,
-                version.label("version"),
-            )
-            .ext(distinct_on(NoteRevision.note_id))
-            .order_by(
-                NoteRevision.note_id,
-                desc(NoteRevision.created_at),
-                desc(NoteRevision.note_revision_id),
-            )
-            .cte("latest_revision_id")
+        latest = latest_revisions(
+            NoteRevision.note_id, NoteRevision.note_revision_id, NoteRevision.created_at
         )
         return (
-            Select(Note, NoteRevision, latest_revision_id.c.version)
-            .join(latest_revision_id, latest_revision_id.c.note_id == Note.note_id)
-            .join(
-                NoteRevision,
-                NoteRevision.note_revision_id == latest_revision_id.c.note_revision_id,
-            )
+            Select(Note, NoteRevision, latest.c.version)
+            .join(latest, latest.c.parent_id == Note.note_id)
+            .join(NoteRevision, NoteRevision.note_revision_id == latest.c.revision_id)
             .where(Note.owner == self.user)
             # A job reads the note again after the LLM call, in one session
             .execution_options(populate_existing=True)
@@ -164,12 +147,12 @@ class NoteRepository:
         is taken.
         """
         note = await self.get_note_by_id(note_id)
-        await self.lock_note(note.note_id)
-        note = await self.get_note_by_id(note.note_id)
-        if base_version is not None and note.version != base_version:
-            raise NoteConflict(note)
-
-        return note
+        return await claim_version(
+            lambda: self.lock_note(note.note_id),
+            lambda: self.get_note_by_id(note.note_id),
+            base_version,
+            NoteConflict,
+        )
 
     async def update_note(
         self, note_id: NoteId, note_model: NoteUpdateModel
