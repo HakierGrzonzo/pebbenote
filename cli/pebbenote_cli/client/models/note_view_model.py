@@ -23,6 +23,7 @@ class NoteViewModel:
         content (str):
         is_default (bool):
         updated_at (datetime.datetime):
+        version (int):
         actions (list[ActionModel]):
     """
 
@@ -30,6 +31,7 @@ class NoteViewModel:
     content: str
     is_default: bool
     updated_at: datetime.datetime
+    version: int
     actions: list[ActionModel]
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
@@ -41,6 +43,8 @@ class NoteViewModel:
         is_default = self.is_default
 
         updated_at = self.updated_at.isoformat()
+
+        version = self.version
 
         actions = []
         for actions_item_data in self.actions:
@@ -55,6 +59,7 @@ class NoteViewModel:
                 "content": content,
                 "is_default": is_default,
                 "updated_at": updated_at,
+                "version": version,
                 "actions": actions,
             }
         )
@@ -74,6 +79,8 @@ class NoteViewModel:
 
         updated_at = datetime.datetime.fromisoformat(d.pop("updated_at"))
 
+        version = d.pop("version")
+
         actions = []
         _actions = d.pop("actions")
         for actions_item_data in _actions:
@@ -86,6 +93,7 @@ class NoteViewModel:
             content=content,
             is_default=is_default,
             updated_at=updated_at,
+            version=version,
             actions=actions,
         )
 

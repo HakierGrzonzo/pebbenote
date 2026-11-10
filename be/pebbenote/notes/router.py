@@ -5,7 +5,13 @@ from fastapi import APIRouter, Depends, Header, Response, status
 
 from pebbenote.http_dates import is_modified_since, last_modified
 from pebbenote.notes.repository import NoteRepository
-from pebbenote.notes.schemas import NoteEditModel, NoteModel, NoteViewModel
+from pebbenote.notes.schemas import (
+    NoteConflictModel,
+    NoteEditModel,
+    NoteModel,
+    NoteUpdateModel,
+    NoteViewModel,
+)
 from pebbenote.notes.types import NoteId
 from pebbenote.notes.view import NoteView
 
@@ -45,11 +51,19 @@ async def get_note_by_id(
     return note
 
 
-@note_router.patch("/{note_id}")
+@note_router.patch(
+    "/{note_id}",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": NoteConflictModel,
+            "description": "The note has changed since base_version",
+        }
+    },
+)
 async def edit_note_by_id(
     repository: Annotated[NoteRepository, Depends()],
     note_id: NoteId,
-    note: NoteEditModel,
+    note: NoteUpdateModel,
 ) -> NoteModel:
     return await repository.update_note(note_id, note)
 

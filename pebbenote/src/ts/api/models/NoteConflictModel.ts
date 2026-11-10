@@ -2,6 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type NoteEditModel = {
-  content: string;
+import type { NoteModel } from "./NoteModel";
+export type NoteConflictModel = {
+  detail: string;
+  current: NoteModel;
 };

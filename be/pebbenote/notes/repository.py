@@ -1,15 +1,15 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, Select, desc, update
+from sqlalchemy import ColumnElement, Select, desc, func, update
 from sqlalchemy.dialects.postgresql import distinct_on, insert
 
 from pebbenote.auth import CurrentUser
 from pebbenote.db import DbSession
 
 from ..tables import Note, NoteAction, NoteRevision, utc_now
-from .exceptions import NoteDoesNotExist
-from .schemas import NoteEditModel, NoteModel, NoteRevisionModel
+from .exceptions import NoteConflict, NoteDoesNotExist
+from .schemas import NoteEditModel, NoteModel, NoteRevisionModel, NoteUpdateModel
 from .types import NoteId
 
 # Seeded into a user's first default note. One line per watch item, so each
@@ -31,16 +31,31 @@ class NoteRepository:
         self.session = session
         self.user = user
 
-    def _select_notes(self) -> Select[tuple[Note, NoteRevision]]:
-        """The user's notes with their latest revision, which holds the content"""
+    def _select_notes(self) -> Select[tuple[Note, NoteRevision, int]]:
+        """
+        The user's notes with their latest revision, which holds the content,
+        and their version: the number of that revision
+        """
+        version = func.row_number().over(
+            partition_by=NoteRevision.note_id,
+            order_by=(NoteRevision.created_at, NoteRevision.note_revision_id),
+        )
         latest_revision_id = (
-            Select(NoteRevision.note_id, NoteRevision.note_revision_id)
+            Select(
+                NoteRevision.note_id,
+                NoteRevision.note_revision_id,
+                version.label("version"),
+            )
             .ext(distinct_on(NoteRevision.note_id))
-            .order_by(NoteRevision.note_id, desc(NoteRevision.created_at))
+            .order_by(
+                NoteRevision.note_id,
+                desc(NoteRevision.created_at),
+                desc(NoteRevision.note_revision_id),
+            )
             .cte("latest_revision_id")
         )
         return (
-            Select(Note, NoteRevision)
+            Select(Note, NoteRevision, latest_revision_id.c.version)
             .join(latest_revision_id, latest_revision_id.c.note_id == Note.note_id)
             .join(
                 NoteRevision,
@@ -50,12 +65,13 @@ class NoteRepository:
         )
 
     @classmethod
-    def map_note(cls, note: Note, revision: NoteRevision) -> NoteModel:
+    def map_note(cls, note: Note, revision: NoteRevision, version: int) -> NoteModel:
         return NoteModel(
             note_id=note.note_id,
             content=revision.note_text,
             is_default=note.is_default,
             updated_at=note.updated_at,
+            version=version,
         )
 
     async def list_notes(self) -> list[NoteModel]:
@@ -63,19 +79,26 @@ class NoteRepository:
 
         results = await self.session.execute(query)
 
-        return [self.map_note(note, revision) for note, revision in results]
+        return [self.map_note(*row) for row in results]
 
-    async def _add_revision(
-        self, note: Note, text: str, action_id: UUID | None = None
-    ) -> NoteRevision:
-        revision = NoteRevision(
-            note_id=note.note_id, note_text=text, note_action_id=action_id
+    async def add_revision(
+        self, note_id: UUID, text: str, action_id: UUID | None = None
+    ) -> NoteModel:
+        """
+        Makes the text the content of the note. Pass the action that made the
+        edit. The caller has claimed the version the text is based on.
+        """
+        note, _, _ = await self._raw_get_note_by_id(note_id)
+        self.session.add(
+            NoteRevision(
+                note_id=note.note_id, note_text=text.strip(), note_action_id=action_id
+            )
         )
-        self.session.add(revision)
         # The note row itself is unchanged, bump it for Last-Modified
         note.updated_at = utc_now()
         await self.session.flush()
-        return revision
+
+        return await self.get_note_by_id(note.note_id)
 
     async def _create_default_note(self) -> None:
         # The partial unique index makes this safe against concurrent requests
@@ -97,7 +120,7 @@ class NoteRepository:
 
     async def _raw_get_note_by_id(
         self, note_id: NoteId, for_update: bool = False
-    ) -> tuple[Note, NoteRevision]:
+    ) -> tuple[Note, NoteRevision, int]:
         query = self._select_notes()
         if note_id == "default":
             query = query.where(Note.is_default)
@@ -119,31 +142,42 @@ class NoteRepository:
         if row is None:
             raise NoteDoesNotExist(note_id)
 
-        note, revision = row
-        return note, revision
+        note, revision, version = row
+        return note, revision, version
 
-    async def get_note_by_id(self, note_id: NoteId, for_update: bool = False):
-        note, revision = await self._raw_get_note_by_id(note_id, for_update)
+    async def get_note_by_id(
+        self, note_id: NoteId, for_update: bool = False
+    ) -> NoteModel:
+        return self.map_note(*await self._raw_get_note_by_id(note_id, for_update))
 
-        return self.map_note(note, revision)
+    async def claim_version(self, note_id: NoteId, base_version: int) -> NoteModel:
+        """
+        The first step of a write that is based on base_version of the note:
+        raises NoteConflict, with the note as it is now, when that is no longer
+        the latest version. Otherwise the note is locked for the caller's
+        write, until the transaction ends.
+        """
+        note = await self.get_note_by_id(note_id)
+        await self.session.execute(
+            Select(Note.note_id).where(Note.note_id == note.note_id).with_for_update()
+        )
+        # Read again in a new statement: it sees what a writer that held the
+        # lock before has committed
+        note = await self.get_note_by_id(note.note_id)
+        if note.version != base_version:
+            raise NoteConflict(note)
+
+        return note
 
     async def update_note(
-        self,
-        note_id: NoteId,
-        note_model: NoteEditModel,
-        action_id: UUID | None = None,
+        self, note_id: NoteId, note_model: NoteUpdateModel
     ) -> NoteModel:
-        """
-        Stores the new content as a revision. Pass the action that made the
-        edit, edits by hand that change nothing are not stored.
-        """
-        note, revision = await self._raw_get_note_by_id(note_id)
-        text = note_model.content.strip()
+        """An edit by hand, one that changes nothing is not stored"""
+        note = await self.claim_version(note_id, note_model.base_version)
 
-        if action_id is not None or text != revision.note_text:
-            revision = await self._add_revision(note, text, action_id)
-
-        return self.map_note(note, revision)
+        if note_model.content.strip() == note.content:
+            return note
+        return await self.add_revision(note.note_id, note_model.content)
 
     def _unchanged_note(
         self, note_id: UUID, updated_at: datetime, *conditions: ColumnElement[bool]
@@ -190,12 +224,15 @@ class NoteRepository:
         note = Note(owner=self.user)
         self.session.add(note)
         await self.session.flush()
-        revision = await self._add_revision(note, note_model.content.strip())
+        self.session.add(
+            NoteRevision(note_id=note.note_id, note_text=note_model.content.strip())
+        )
+        await self.session.flush()
 
-        return self.map_note(note, revision)
+        return await self.get_note_by_id(note.note_id)
 
     async def set_default_note(self, note_id: UUID) -> NoteModel:
-        note, revision = await self._raw_get_note_by_id(note_id)
+        note, revision, version = await self._raw_get_note_by_id(note_id)
 
         if not note.is_default:
             # Clear the old default first: the partial unique index allows
@@ -209,13 +246,13 @@ class NoteRepository:
             note.is_default = True
             await self.session.flush()
 
-        return self.map_note(note, revision)
+        return self.map_note(note, revision, version)
 
     async def list_revisions(
         self, note_id: NoteId, limit: int
     ) -> list[NoteRevisionModel]:
         """The latest revisions of a note, oldest first"""
-        note, _ = await self._raw_get_note_by_id(note_id)
+        note, _, _ = await self._raw_get_note_by_id(note_id)
         query = (
             Select(NoteRevision, NoteAction.action_text)
             .outerjoin(NoteAction)

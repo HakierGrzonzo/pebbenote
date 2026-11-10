@@ -142,6 +142,7 @@ async function deleteNoteLines(indexes: number[]) {
     }
     const updated = await notes.editNoteById("default", {
       content: lines.join("\n"),
+      base_version: note.version,
     });
     PebbleTS.sendAppMessage({ ...encodeNote(updated.content) });
   } catch (e) {

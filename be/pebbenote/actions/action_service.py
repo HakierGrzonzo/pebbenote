@@ -13,7 +13,7 @@ from pebbenote.llm import ai_provider
 from pebbenote.llm.base import AIAdapter
 from pebbenote.llm.schemas import Chat, Message
 from pebbenote.notes.repository import NoteRepository
-from pebbenote.notes.schemas import NoteEditModel, NoteModel
+from pebbenote.notes.schemas import NoteModel
 from pebbenote.tables import ActionStatus
 
 from .history import build_history
@@ -81,8 +81,8 @@ class NoteActionService:
         await self.action_repository.set_status(
             action.note_action_id, ActionStatus.done
         )
-        return await self.note_repository.update_note(
-            note.note_id, NoteEditModel(content=response), action.note_action_id
+        return await self.note_repository.add_revision(
+            note.note_id, response, action.note_action_id
         )
 
     async def apply_instructions(
@@ -123,8 +123,8 @@ class NoteActionService:
         action = await self.action_repository.add_action(
             note_id, apply_instructions_action_text
         )
-        return await self.note_repository.update_note(
-            note_id, NoteEditModel(content=response), action.note_action_id
+        return await self.note_repository.add_revision(
+            note_id, response, action.note_action_id
         )
 
     async def _build_chat(

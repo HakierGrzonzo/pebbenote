@@ -5,10 +5,10 @@ from uuid import uuid4
 from sqlalchemy.exc import IntegrityError
 
 from pebbenote.db import get_test_db
-from pebbenote.notes.schemas import NoteEditModel
+from pebbenote.notes.schemas import NoteEditModel, NoteUpdateModel
 
 from ..tables import Note, NoteAction, NoteRevision
-from .exceptions import NoteDoesNotExist
+from .exceptions import NoteConflict, NoteDoesNotExist
 from .repository import DEFAULT_NOTE_TEXT, NoteRepository
 
 NUMBER_OF_NOTES = 4
@@ -42,6 +42,13 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         )
         await self.session.flush()
 
+    async def edit(self, note_id, content: str):
+        """An edit by hand, based on the latest version"""
+        note = await self.repository.get_note_by_id(note_id)
+        return await self.repository.update_note(
+            note_id, NoteUpdateModel(content=content, base_version=note.version)
+        )
+
     async def test_create_note(self):
         model = NoteEditModel(
             content="A note",
@@ -56,9 +63,7 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         self.assertEqual(note.content, "A note")
 
     async def test_update_note_strips_content(self):
-        note = await self.repository.update_note(
-            uuid_gen["note", 0], NoteEditModel(content="Edited\n\n")
-        )
+        note = await self.edit(uuid_gen["note", 0], "Edited\n\n")
 
         self.assertEqual(note.content, "Edited")
 
@@ -98,7 +103,7 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         self.assertNotEqual(ours.note_id, theirs.note_id)
 
     async def test_update_default_note(self):
-        await self.repository.update_note("default", NoteEditModel(content="Edited"))
+        await self.edit("default", "Edited")
 
         note = await self.repository.get_note_by_id("default")
         self.assertEqual(note.content, "Edited")
@@ -139,9 +144,7 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
 
     async def test_update_bumps_updated_at(self):
         before = await self.repository.get_note_by_id(uuid_gen["note", 0])
-        after = await self.repository.update_note(
-            uuid_gen["note", 0], NoteEditModel(content="Edited")
-        )
+        after = await self.edit(uuid_gen["note", 0], "Edited")
 
         self.assertGreater(after.updated_at, before.updated_at)
 
@@ -149,12 +152,8 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         return await self.repository.list_revisions(note_id, limit=100)
 
     async def test_content_is_latest_revision(self):
-        await self.repository.update_note(
-            uuid_gen["note", 0], NoteEditModel(content="First")
-        )
-        await self.repository.update_note(
-            uuid_gen["note", 0], NoteEditModel(content="Second")
-        )
+        await self.edit(uuid_gen["note", 0], "First")
+        await self.edit(uuid_gen["note", 0], "Second")
 
         note = await self.repository.get_note_by_id(uuid_gen["note", 0])
         listed = {n.note_id: n for n in await self.repository.list_notes()}
@@ -164,9 +163,7 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         self.assertEqual(listed[uuid_gen["note", 1]].content, "Some text")
 
     async def test_update_adds_revision(self):
-        await self.repository.update_note(
-            uuid_gen["note", 0], NoteEditModel(content="Edited")
-        )
+        await self.edit(uuid_gen["note", 0], "Edited")
 
         revisions = await self.revisions()
 
@@ -174,9 +171,7 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         self.assertIsNone(revisions[-1].action)
 
     async def test_unchanged_manual_edit_adds_no_revision(self):
-        await self.repository.update_note(
-            uuid_gen["note", 0], NoteEditModel(content="Some text\n")
-        )
+        await self.edit(uuid_gen["note", 0], "Some text\n")
 
         self.assertEqual(len(await self.revisions()), 1)
 
@@ -186,10 +181,8 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         await self.session.flush()
 
         # Even an unchanged note is stored, so every done action has a revision
-        await self.repository.update_note(
-            uuid_gen["note", 0],
-            NoteEditModel(content="Some text"),
-            action.note_action_id,
+        await self.repository.add_revision(
+            uuid_gen["note", 0], "Some text", action.note_action_id
         )
 
         revisions = await self.revisions()
@@ -210,9 +203,7 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
 
     async def test_list_revisions_keeps_latest(self):
         for i in range(5):
-            await self.repository.update_note(
-                uuid_gen["note", 0], NoteEditModel(content=f"Edit {i}")
-            )
+            await self.edit(uuid_gen["note", 0], f"Edit {i}")
 
         revisions = await self.repository.list_revisions(uuid_gen["note", 0], 2)
 
@@ -224,3 +215,39 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(note.content, "Some text")
+
+    async def test_version_is_the_number_of_revisions(self):
+        created = await self.repository.create_note(NoteEditModel(content="New"))
+        self.assertEqual(created.version, 1)
+
+        first = await self.edit(uuid_gen["note", 0], "First")
+        second = await self.edit(uuid_gen["note", 0], "Second")
+
+        self.assertEqual((first.version, second.version), (2, 3))
+        listed = {n.note_id: n for n in await self.repository.list_notes()}
+        self.assertEqual(listed[uuid_gen["note", 0]].version, 3)
+        self.assertEqual(listed[uuid_gen["note", 1]].version, 1)
+
+    async def test_unchanged_edit_keeps_the_version(self):
+        note = await self.edit(uuid_gen["note", 0], "Some text\n")
+
+        self.assertEqual(note.version, 1)
+
+    async def test_edit_of_an_old_version_conflicts(self):
+        current = await self.edit(uuid_gen["note", 0], "Theirs")
+
+        with self.assertRaises(NoteConflict) as ctx:
+            await self.repository.update_note(
+                uuid_gen["note", 0], NoteUpdateModel(content="Mine", base_version=1)
+            )
+
+        self.assertEqual(ctx.exception.current, current)
+        note = await self.repository.get_note_by_id(uuid_gen["note", 0])
+        self.assertEqual(note, current)
+
+    async def test_claim_version(self):
+        note = await self.repository.claim_version("default", 1)
+        self.assertEqual(note.version, 1)
+
+        with self.assertRaises(NoteConflict):
+            await self.repository.claim_version("default", 2)

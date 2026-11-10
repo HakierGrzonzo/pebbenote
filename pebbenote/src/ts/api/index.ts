@@ -15,10 +15,13 @@ export type { ActionEditModel } from "./models/ActionEditModel";
 export type { ActionModel } from "./models/ActionModel";
 export { ActionStatus } from "./models/ActionStatus";
 export type { HTTPValidationError } from "./models/HTTPValidationError";
-export type { NoteEditModel } from "./models/NoteEditModel";
+export type { InstructionsModel } from "./models/InstructionsModel";
+export type { NoteConflictModel } from "./models/NoteConflictModel";
 export type { NoteModel } from "./models/NoteModel";
+export type { NoteUpdateModel } from "./models/NoteUpdateModel";
 export type { NoteViewModel } from "./models/NoteViewModel";
 export type { ValidationError } from "./models/ValidationError";
 
 export { ActionsService } from "./services/ActionsService";
+export { InstructionsService } from "./services/InstructionsService";
 export { NotesService } from "./services/NotesService";

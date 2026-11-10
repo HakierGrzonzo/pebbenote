@@ -6,10 +6,12 @@ import type { BaseHttpRequest } from "./core/BaseHttpRequest";
 import type { OpenAPIConfig } from "./core/OpenAPI";
 import { XHRHttpRequest } from "./core/XHRHttpRequest";
 import { ActionsService } from "./services/ActionsService";
+import { InstructionsService } from "./services/InstructionsService";
 import { NotesService } from "./services/NotesService";
 type HttpRequestConstructor = new (config: OpenAPIConfig) => BaseHttpRequest;
 export class AppClient {
   public readonly actions: ActionsService;
+  public readonly instructions: InstructionsService;
   public readonly notes: NotesService;
   public readonly request: BaseHttpRequest;
   constructor(
@@ -28,6 +30,7 @@ export class AppClient {
       ENCODE_PATH: config?.ENCODE_PATH,
     });
     this.actions = new ActionsService(this.request);
+    this.instructions = new InstructionsService(this.request);
     this.notes = new NotesService(this.request);
   }
 }

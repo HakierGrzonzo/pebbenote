@@ -1,32 +1,41 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="NoteEditModel")
+if TYPE_CHECKING:
+    from ..models.note_model import NoteModel
+
+
+T = TypeVar("T", bound="NoteConflictModel")
 
 
 @_attrs_define
-class NoteEditModel:
+class NoteConflictModel:
     """
     Attributes:
-        content (str):
+        detail (str):
+        current (NoteModel):
     """
 
-    content: str
+    detail: str
+    current: NoteModel
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        content = self.content
+        detail = self.detail
+
+        current = self.current.to_dict()
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
             {
-                "content": content,
+                "detail": detail,
+                "current": current,
             }
         )
 
@@ -34,15 +43,20 @@ class NoteEditModel:
 
     @classmethod
     def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
-        d = dict(src_dict)
-        content = d.pop("content")
+        from ..models.note_model import NoteModel  # noqa: PLC0415
 
-        note_edit_model = cls(
-            content=content,
+        d = dict(src_dict)
+        detail = d.pop("detail")
+
+        current = NoteModel.from_dict(d.pop("current"))
+
+        note_conflict_model = cls(
+            detail=detail,
+            current=current,
         )
 
-        note_edit_model.additional_properties = d
-        return note_edit_model
+        note_conflict_model.additional_properties = d
+        return note_conflict_model
 
     @property
     def additional_keys(self) -> list[str]:

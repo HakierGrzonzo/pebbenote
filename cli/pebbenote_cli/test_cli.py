@@ -7,7 +7,12 @@ from uuid import UUID
 from . import cli
 from .client.api.instructions import list_instructions, replace_instructions
 from .client.api.notes import edit_note_by_id, get_note_by_id, list_notes
-from .client.models import InstructionsModel, NoteEditModel, NoteModel, NoteViewModel
+from .client.models import (
+    InstructionsModel,
+    NoteModel,
+    NoteUpdateModel,
+    NoteViewModel,
+)
 from .config import Config
 from .errors import CliError
 
@@ -19,6 +24,7 @@ NOTE = NoteViewModel(
     content="Shopping\n- milk\n",
     is_default=True,
     updated_at=UPDATED_AT,
+    version=3,
     actions=[],
 )
 INSTRUCTIONS = InstructionsModel(instructions=["use metric units", "sort by aisle"])
@@ -85,7 +91,7 @@ class MainTestCase(TestCase):
             CONFIG,
             edit_note_by_id,
             note_id="abc",
-            body=NoteEditModel(content="Updated"),
+            body=NoteUpdateModel(content="Updated", base_version=3),
         )
         self.assertIn("Note synced", stderr)
 
@@ -97,6 +103,7 @@ class MainTestCase(TestCase):
                 content="",
                 is_default=False,
                 updated_at=UPDATED_AT,
+                version=1,
             ),
         ]
         stdout, _ = self.run_cli("list")

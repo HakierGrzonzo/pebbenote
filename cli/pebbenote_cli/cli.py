@@ -9,7 +9,7 @@ from pebbenote_cli.client.api.instructions import (
     replace_instructions,
 )
 from pebbenote_cli.client.api.notes import edit_note_by_id, get_note_by_id, list_notes
-from pebbenote_cli.client.models import InstructionsModel, NoteEditModel
+from pebbenote_cli.client.models import InstructionsModel, NoteUpdateModel
 from pebbenote_cli.config import load_config
 from pebbenote_cli.editor import edit_text
 from pebbenote_cli.errors import CliError
@@ -29,7 +29,7 @@ def cmd_edit(config, args):
         config,
         edit_note_by_id,
         note_id=args.note_id,
-        body=NoteEditModel(content=edited),
+        body=NoteUpdateModel(content=edited, base_version=note.version),
     )
     print("Note synced.", file=sys.stderr)
 

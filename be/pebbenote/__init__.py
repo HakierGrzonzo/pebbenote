@@ -12,6 +12,7 @@ from .config import settings
 from .instructions.router import instruction_router
 from .notes.exceptions import NoteDoesNotExist
 from .notes.router import note_router
+from .versioning import VersionConflict
 from .worker import broker
 
 logging.basicConfig(level=logging.INFO)
@@ -62,6 +63,14 @@ if is_local:
 @app.exception_handler(NoteDoesNotExist)
 async def note_does_not_exist_handler(request: Request, exc: NoteDoesNotExist):
     return JSONResponse(status_code=404, content={"detail": "Note not found"})
+
+
+@app.exception_handler(VersionConflict)
+async def version_conflict_handler(request: Request, exc: VersionConflict):
+    return JSONResponse(
+        status_code=409,
+        content={"detail": exc.detail, "current": exc.current.model_dump(mode="json")},
+    )
 
 
 app.include_router(note_router, dependencies=[Depends(get_current_user)])

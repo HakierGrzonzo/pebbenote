@@ -5,7 +5,7 @@ from pebbenote.instructions.repository import UserInstructionRepository
 from pebbenote.llm.mock import MockAdapter
 from pebbenote.llm.schemas import Chat
 from pebbenote.notes.repository import NoteRepository
-from pebbenote.notes.schemas import NoteEditModel
+from pebbenote.notes.schemas import NoteUpdateModel
 from pebbenote.tables import ActionStatus
 
 from .action_service import NoteActionService
@@ -35,6 +35,13 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
             ActionEditModel(note_id="default", action=action)
         )
         return await self.service.apply_action(pending.note_action_id)
+
+    async def edit_note(self, content: str):
+        """An edit by hand of the default note, based on its latest version"""
+        note = await self.notes.get_note_by_id("default")
+        return await self.notes.update_note(
+            "default", NoteUpdateModel(content=content, base_version=note.version)
+        )
 
     def called_chat(self) -> Chat:
         chat = self.ai.get_called_with()
@@ -132,8 +139,8 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
         self.assertGreater(failed.updated_at, pending.updated_at)
 
     async def test_manual_delete_is_in_history(self):
-        await self.notes.update_note("default", NoteEditModel(content="- milk\n- eggs"))
-        await self.notes.update_note("default", NoteEditModel(content="- milk"))
+        await self.edit_note("- milk\n- eggs")
+        await self.edit_note("- milk")
 
         await self.run_action("revert what I just deleted")
 
@@ -184,7 +191,7 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
     async def test_instructions_are_not_applied_to_a_changed_note(self):
         await self.instructions.replace_instructions(["I should shout."])
         before = await self.notes.get_note_by_id("default")
-        await self.notes.update_note("default", NoteEditModel(content="- by hand"))
+        await self.edit_note("- by hand")
 
         note = await self.service.apply_instructions(
             before.note_id, before.updated_at, ["I should shout."]
@@ -249,7 +256,7 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
 
     async def test_note_edited_during_completion_is_kept(self):
         note, before = await self.apply_instructions_while(
-            lambda: self.notes.update_note("default", NoteEditModel(content="- mine"))
+            lambda: self.edit_note("- mine")
         )
 
         self.assertIsNone(note)

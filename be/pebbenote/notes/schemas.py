@@ -11,10 +11,24 @@ class NoteModel(BaseModel):
     content: str
     is_default: bool
     updated_at: datetime
+    # The number of revisions of the note, an edit has to name the one it is
+    # based on
+    version: int
 
 
 class NoteEditModel(BaseModel):
     content: str
+
+
+class NoteUpdateModel(NoteEditModel):
+    # The version of the note the edit was made on
+    base_version: int
+
+
+class NoteConflictModel(BaseModel):
+    detail: str
+    # The note as it is now, to merge the edit with
+    current: NoteModel
 
 
 class NoteViewModel(NoteModel):
