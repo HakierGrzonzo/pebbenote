@@ -5,7 +5,7 @@ from sqlalchemy import Select, asc
 
 from pebbenote.actions.schemas import ActionModel
 from pebbenote.db import DbSession
-from pebbenote.tables import ActionStatus, NoteAction
+from pebbenote.tables import ActionStatus, NoteAction, utc_now
 
 
 class NoteActionRepository:
@@ -27,7 +27,7 @@ class NoteActionRepository:
         query = (
             Select(NoteAction)
             .where(NoteAction.note_id == note_id)
-            .order_by(asc(NoteAction.created_at))
+            .order_by(asc(NoteAction.created_at), asc(NoteAction.note_action_id))
         )
 
         results = await self.session.execute(query)
@@ -35,6 +35,18 @@ class NoteActionRepository:
         actions = cast(list[NoteAction], results.scalars().all())
 
         return [self.map_action(action) for action in actions]
+
+    async def first_pending(self, note_id: UUID) -> UUID | None:
+        """The head of the note's queue: its oldest action that is not applied yet"""
+        query = (
+            Select(NoteAction.note_action_id)
+            .where(NoteAction.note_id == note_id)
+            .where(NoteAction.status == ActionStatus.pending)
+            .order_by(asc(NoteAction.created_at), asc(NoteAction.note_action_id))
+            .limit(1)
+        )
+
+        return (await self.session.execute(query)).scalar_one_or_none()
 
     async def get_action(self, action_id: UUID) -> ActionModel:
         action = await self.session.get_one(NoteAction, action_id)
@@ -46,7 +58,14 @@ class NoteActionRepository:
         action_text: str,
         status: ActionStatus = ActionStatus.done,
     ):
-        action = NoteAction(note_id=note_id, action_text=action_text, status=status)
+        # The time of the insert, not of the transaction: actions are queued
+        # in the order they got hold of the note
+        action = NoteAction(
+            note_id=note_id,
+            action_text=action_text,
+            status=status,
+            created_at=utc_now(),
+        )
         self.session.add(action)
         await self.session.flush()
 

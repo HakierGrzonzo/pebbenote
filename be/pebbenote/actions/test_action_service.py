@@ -33,11 +33,16 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
             self.ai,
         )
 
-    async def run_action(self, action: str):
-        pending = await self.service.enqueue_action(
+    async def enqueue(self, action: str):
+        pending, _ = await self.service.enqueue_action(
             ActionEditModel(note_id="default", action=action)
         )
-        return await self.service.apply_action(pending.note_action_id)
+        return pending
+
+    async def run_action(self, action: str):
+        pending = await self.enqueue(action)
+        note, _ = await self.service.apply_action(pending.note_action_id)
+        return note
 
     async def edit_note(self, content: str):
         """An edit by hand of the default note, based on its latest version"""
@@ -98,9 +103,7 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
         )
 
     async def test_action_goes_from_pending_to_done(self):
-        pending = await self.service.enqueue_action(
-            ActionEditModel(note_id="default", action="add milk")
-        )
+        pending = await self.enqueue("add milk")
         self.assertEqual(pending.status, ActionStatus.pending)
 
         await self.service.apply_action(pending.note_action_id)
@@ -109,22 +112,19 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
         self.assertEqual(action.status, ActionStatus.done)
 
     async def test_done_action_is_not_applied_twice(self):
-        pending = await self.service.enqueue_action(
-            ActionEditModel(note_id="default", action="add milk")
-        )
+        pending = await self.enqueue("add milk")
         await self.service.apply_action(pending.note_action_id)
         self.ai.set_result("- second")
 
-        note = await self.service.apply_action(pending.note_action_id)
+        note, next_action = await self.service.apply_action(pending.note_action_id)
 
         self.assertEqual(note.content, "- result")
+        self.assertIsNone(next_action)
 
     async def test_failed_completion_writes_nothing(self):
         self.ai.input_kind = "instruction"
         before = await self.notes.get_note_by_id("default")
-        pending = await self.service.enqueue_action(
-            ActionEditModel(note_id="default", action="sort groceries")
-        )
+        pending = await self.enqueue("sort groceries")
 
         self.ai.set_result(None)  # type: ignore[arg-type]
         savepoint = await self.session.begin_nested()
@@ -139,9 +139,7 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
         self.assertEqual(action.status, ActionStatus.pending)
 
     async def test_status_change_bumps_action_updated_at(self):
-        pending = await self.service.enqueue_action(
-            ActionEditModel(note_id="default", action="add milk")
-        )
+        pending = await self.enqueue("add milk")
 
         failed = await self.actions.set_status(
             pending.note_action_id, ActionStatus.failed
@@ -172,15 +170,122 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
         self.assertIn("+- result", messages[index + 1].content)
 
     async def test_applied_action_links_revision(self):
-        pending = await self.service.enqueue_action(
-            ActionEditModel(note_id="default", action="add milk")
-        )
+        pending = await self.enqueue("add milk")
         await self.service.apply_action(pending.note_action_id)
 
         revisions = await self.notes.list_revisions("default", 10)
 
         self.assertEqual(revisions[-1].action, "add milk")
         self.assertEqual(revisions[-1].content, "- result")
+
+    def during_completion(self, change):
+        """Makes `change` happen while the LLM is busy, on its first call only"""
+        complete = self.ai.get_completion
+        changes = iter([change])
+
+        async def completion(chat: Chat) -> str:
+            for pending_change in changes:
+                await pending_change()
+            return await complete(chat)
+
+        self.ai.get_completion = completion  # type: ignore[method-assign]
+
+    async def test_note_edited_while_an_action_runs_conflicts(self):
+        pending = await self.enqueue("add milk")
+        self.during_completion(lambda: self.edit_note("- mine"))
+
+        with self.assertRaises(NoteConflict):
+            await self.service.apply_action(pending.note_action_id)
+
+        # The edit is kept and the action is run again on top of it
+        note = await self.notes.get_note_by_id("default")
+        self.assertEqual(note.content, "- mine")
+        action = await self.actions.get_action(pending.note_action_id)
+        self.assertEqual(action.status, ActionStatus.pending)
+
+        note, _ = await self.service.apply_action(pending.note_action_id)
+
+        self.assertEqual(note.content, "- result")
+        contents = [m.content for m in self.called_chat().messages if m.kind == "user"]
+        self.assertTrue(any("- mine" in content for content in contents))
+        revisions = await self.notes.list_revisions("default", 10)
+        self.assertEqual([r.content for r in revisions[-2:]], ["- mine", "- result"])
+
+    async def test_instructions_edited_while_an_instruction_is_added_conflict(self):
+        self.ai.input_kind = "instruction"
+        pending = await self.enqueue("sort groceries")
+        before = await self.notes.get_note_by_id("default")
+        self.during_completion(lambda: self.set_instructions(["I should whisper."]))
+
+        with self.assertRaises(InstructionsConflict):
+            await self.service.apply_action(pending.note_action_id)
+
+        # Nothing was written, the action is run again
+        self.assertEqual(await self.notes.get_note_by_id("default"), before)
+        self.assertEqual(await self.stored_instructions(), ["I should whisper."])
+
+        await self.service.apply_action(pending.note_action_id)
+
+        self.assertEqual(
+            await self.stored_instructions(),
+            ["I should whisper.", self.ai.rewritten_instruction],
+        )
+
+    async def test_only_the_first_action_of_a_queue_is_started(self):
+        first, first_is_head = await self.service.enqueue_action(
+            ActionEditModel(note_id="default", action="add milk")
+        )
+        second, second_is_head = await self.service.enqueue_action(
+            ActionEditModel(note_id="default", action="add eggs")
+        )
+
+        self.assertTrue(first_is_head)
+        self.assertFalse(second_is_head)
+        actions = await self.actions.list_actions(first.note_id)
+        self.assertEqual(
+            [a.note_action_id for a in actions],
+            [first.note_action_id, second.note_action_id],
+        )
+
+    async def test_applied_action_hands_over_to_the_next(self):
+        first = await self.enqueue("add milk")
+        second = await self.enqueue("add eggs")
+        third = await self.enqueue("add flour")
+
+        _, after_first = await self.service.apply_action(first.note_action_id)
+        _, after_second = await self.service.apply_action(second.note_action_id)
+        _, after_third = await self.service.apply_action(third.note_action_id)
+
+        self.assertEqual(after_first, second.note_action_id)
+        self.assertEqual(after_second, third.note_action_id)
+        self.assertIsNone(after_third)
+        revisions = await self.notes.list_revisions("default", 10)
+        self.assertEqual(
+            [r.action for r in revisions[-3:]], ["add milk", "add eggs", "add flour"]
+        )
+
+    async def test_failed_action_hands_over_to_the_next(self):
+        first = await self.enqueue("add milk")
+        second = await self.enqueue("add eggs")
+
+        next_action = await self.service.fail_action(first.note_action_id)
+
+        self.assertEqual(next_action, second.note_action_id)
+        action = await self.actions.get_action(first.note_action_id)
+        self.assertEqual(action.status, ActionStatus.failed)
+        enqueued, is_head = await self.service.enqueue_action(
+            ActionEditModel(note_id="default", action="add flour")
+        )
+        self.assertFalse(is_head)
+
+    async def test_a_new_action_after_a_finished_queue_is_started(self):
+        await self.run_action("add milk")
+
+        _, is_head = await self.service.enqueue_action(
+            ActionEditModel(note_id="default", action="add eggs")
+        )
+
+        self.assertTrue(is_head)
 
     async def test_edited_instructions_are_applied(self):
         await self.set_instructions(["I should shout.", "I sort."])
@@ -215,18 +320,6 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
         self.assertEqual(note, before)
         self.assertEqual(await self.actions.list_actions(before.note_id), [])
         self.assertEqual(len(await self.notes.list_revisions("default", 10)), 1)
-
-    def during_completion(self, change):
-        """Makes `change` happen while the LLM is busy, on its first call only"""
-        complete = self.ai.get_completion
-        changes = iter([change])
-
-        async def completion(chat: Chat) -> str:
-            for pending_change in changes:
-                await pending_change()
-            return await complete(chat)
-
-        self.ai.get_completion = completion  # type: ignore[method-assign]
 
     async def test_instructions_edited_during_completion_conflict(self):
         await self.set_instructions(["I should shout."])

@@ -120,18 +120,13 @@ class NoteRepository:
             await self.session.flush()
 
     async def _raw_get_note_by_id(
-        self, note_id: NoteId, for_update: bool = False
+        self, note_id: NoteId
     ) -> tuple[Note, NoteRevision, int]:
         query = self._select_notes()
         if note_id == "default":
             query = query.where(Note.is_default)
         else:
             query = query.where(Note.note_id == note_id)
-        if for_update:
-            # Serializes concurrent edits of one note
-            query = query.with_for_update(of=Note).execution_options(
-                populate_existing=True
-            )
 
         row = (await self.session.execute(query)).one_or_none()
 
@@ -146,10 +141,19 @@ class NoteRepository:
         note, revision, version = row
         return note, revision, version
 
-    async def get_note_by_id(
-        self, note_id: NoteId, for_update: bool = False
-    ) -> NoteModel:
-        return self.map_note(*await self._raw_get_note_by_id(note_id, for_update))
+    async def get_note_by_id(self, note_id: NoteId) -> NoteModel:
+        return self.map_note(*await self._raw_get_note_by_id(note_id))
+
+    async def lock_note(self, note_id: UUID) -> None:
+        """
+        Holds the note until the transaction ends. Statements after this one
+        see what a writer that held the lock before has committed.
+        """
+        await self.session.execute(
+            Select(Note.note_id)
+            .where(Note.note_id == note_id, Note.owner == self.user)
+            .with_for_update()
+        )
 
     async def claim_version(self, note_id: NoteId, base_version: int) -> NoteModel:
         """
@@ -159,11 +163,7 @@ class NoteRepository:
         write, until the transaction ends.
         """
         note = await self.get_note_by_id(note_id)
-        await self.session.execute(
-            Select(Note.note_id).where(Note.note_id == note.note_id).with_for_update()
-        )
-        # Read again in a new statement: it sees what a writer that held the
-        # lock before has committed
+        await self.lock_note(note.note_id)
         note = await self.get_note_by_id(note.note_id)
         if note.version != base_version:
             raise NoteConflict(note)

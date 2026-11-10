@@ -37,17 +37,22 @@ async def apply_action(
     user: CurrentUser,
     payload: ActionEditModel,
 ) -> NoteModel | JSONResponse:
-    action = await service.enqueue_action(payload)
+    action, is_head = await service.enqueue_action(payload)
     # The worker uses its own connection, so the action must be visible first
     await session.commit()
 
-    task = await apply_action_task.kiq(action_id=str(action.note_action_id), owner=user)
-    try:
-        result = await task.wait_result(timeout=settings.ACTION_WAIT_SECONDS)
-        if not result.is_err:
-            return NoteModel.model_validate(result.return_value)
-    except TaskiqResultTimeoutError:
-        pass
+    # An action behind others is started by the one before it, don't wait
+    if is_head:
+        task = await apply_action_task.kiq(
+            action_id=str(action.note_action_id), owner=user
+        )
+        try:
+            result = await task.wait_result(timeout=settings.ACTION_WAIT_SECONDS)
+            # No note when the action has to run again
+            if not result.is_err and result.return_value is not None:
+                return NoteModel.model_validate(result.return_value)
+        except TaskiqResultTimeoutError:
+            pass
 
     # Read after waiting: the note last changed when the action was added, a
     # whole wait ago, so the date is exact and the first poll can be a 304

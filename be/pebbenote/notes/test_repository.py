@@ -209,13 +209,6 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
 
         self.assertEqual([r.content for r in revisions], ["Edit 3", "Edit 4"])
 
-    async def test_get_for_update(self):
-        note = await self.repository.get_note_by_id(
-            uuid_gen["note", 0], for_update=True
-        )
-
-        self.assertEqual(note.content, "Some text")
-
     async def test_version_is_the_number_of_revisions(self):
         created = await self.repository.create_note(NoteEditModel(content="New"))
         self.assertEqual(created.version, 1)
