@@ -7,4 +7,5 @@ export type NoteModel = {
   content: string;
   is_default: boolean;
   updated_at: string;
+  version: number;
 };

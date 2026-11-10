@@ -1,35 +1,125 @@
-from typing import cast
+from uuid import UUID
 
-from sqlalchemy import Select, asc
+from sqlalchemy import Select
+from sqlalchemy.dialects.postgresql import insert
 
 from pebbenote.auth import CurrentUser
 from pebbenote.db import DbSession
-from pebbenote.tables import UserInstruction
+from pebbenote.tables import InstructionList, InstructionRevision
+from pebbenote.versioning import claim_version, latest_revisions
+
+from .exceptions import InstructionsConflict
+from .schemas import InstructionsEditModel, InstructionsModel
 
 
 class UserInstructionRepository:
+    """
+    The standing instructions of the user. Versioned like a note: the list is
+    its latest revision, the version is the number of that revision.
+    """
+
     def __init__(self, session: DbSession, user: CurrentUser) -> None:
         self.session = session
         self.user = user
 
-    async def list_instructions(self) -> list[str]:
-        query = (
-            Select(UserInstruction)
-            .where(UserInstruction.owner == self.user)
-            .order_by(asc(UserInstruction.created_at))
+    def _select_list(self) -> Select[tuple[InstructionList, InstructionRevision, int]]:
+        latest = latest_revisions(
+            InstructionRevision.instruction_list_id,
+            InstructionRevision.instruction_revision_id,
+            InstructionRevision.created_at,
+        )
+        return (
+            Select(InstructionList, InstructionRevision, latest.c.version)
+            .join(latest, latest.c.parent_id == InstructionList.instruction_list_id)
+            .join(
+                InstructionRevision,
+                InstructionRevision.instruction_revision_id == latest.c.revision_id,
+            )
+            .where(InstructionList.owner == self.user)
         )
 
-        results = await self.session.execute(query)
+    async def _create_list(self) -> None:
+        # The unique owner makes this safe against concurrent requests
+        list_id = (
+            await self.session.execute(
+                insert(InstructionList)
+                .values(owner=self.user)
+                .on_conflict_do_nothing(index_elements=[InstructionList.owner])
+                .returning(InstructionList.instruction_list_id)
+            )
+        ).scalar_one_or_none()
 
-        instructions = cast(list[UserInstruction], results.scalars().all())
+        if list_id is not None:
+            self.session.add(
+                InstructionRevision(instruction_list_id=list_id, instructions=[])
+            )
+            await self.session.flush()
 
-        return [instruction.instruction_text for instruction in instructions]
+    async def _raw_get_instructions(
+        self,
+    ) -> tuple[InstructionList, InstructionRevision, int]:
+        query = self._select_list()
 
-    async def add_instruction(self, instruction_text: str) -> str:
-        instruction = UserInstruction(
-            owner=self.user, instruction_text=instruction_text
+        row = (await self.session.execute(query)).one_or_none()
+
+        if row is None:
+            # The first time the user's instructions are looked at
+            await self._create_list()
+            row = (await self.session.execute(query)).one()
+
+        instruction_list, revision, version = row
+        return instruction_list, revision, version
+
+    async def get_instructions(self) -> InstructionsModel:
+        _, revision, version = await self._raw_get_instructions()
+
+        return InstructionsModel(instructions=revision.instructions, version=version)
+
+    async def claim_version(self, base_version: int) -> InstructionsModel:
+        """
+        The first step of a write that is based on base_version of the
+        instructions: raises InstructionsConflict, with the instructions as
+        they are now, when that is no longer the latest version. Otherwise the
+        list is locked for the caller's write, until the transaction ends.
+        """
+        instruction_list, _, _ = await self._raw_get_instructions()
+        return await claim_version(
+            lambda: self._lock_list(instruction_list.instruction_list_id),
+            self.get_instructions,
+            base_version,
+            InstructionsConflict,
         )
-        self.session.add(instruction)
+
+    async def _lock_list(self, instruction_list_id: UUID) -> None:
+        await self.session.execute(
+            Select(InstructionList.instruction_list_id)
+            .where(InstructionList.instruction_list_id == instruction_list_id)
+            .with_for_update()
+        )
+
+    async def add_revision(self, instruction_texts: list[str]) -> InstructionsModel:
+        """
+        Makes the texts the instructions of the user. The caller has claimed
+        the version they are based on.
+        """
+        instruction_list, _, _ = await self._raw_get_instructions()
+        self.session.add(
+            InstructionRevision(
+                instruction_list_id=instruction_list.instruction_list_id,
+                instructions=instruction_texts,
+            )
+        )
         await self.session.flush()
 
-        return instruction.instruction_text
+        return await self.get_instructions()
+
+    async def replace_instructions(
+        self, instructions_model: InstructionsEditModel
+    ) -> InstructionsModel:
+        """An edit by hand, one that changes nothing is not stored"""
+        instructions = await self.claim_version(instructions_model.base_version)
+
+        # The order of the instructions does not matter
+        if sorted(instructions_model.instructions) == sorted(instructions.instructions):
+            return instructions
+        return await self.add_revision(instructions_model.instructions)

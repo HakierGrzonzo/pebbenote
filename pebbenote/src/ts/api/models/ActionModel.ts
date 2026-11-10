@@ -9,4 +9,5 @@ export type ActionModel = {
   action: string;
   status: ActionStatus;
   created_at: string;
+  updated_at: string;
 };

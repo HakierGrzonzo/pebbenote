@@ -8,5 +8,7 @@ export type NoteViewModel = {
   content: string;
   is_default: boolean;
   updated_at: string;
+  version: number;
   actions: Array<ActionModel>;
+  last_modified: string;
 };

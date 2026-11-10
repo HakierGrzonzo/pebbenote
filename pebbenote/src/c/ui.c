@@ -9,6 +9,7 @@ static Window *s_main_window;
 static TextLayer *s_output_layer;
 static ScrollLayer *s_scroll_layer;
 static StatusBarLayer *s_status_bar;
+static TextLayer *s_processing_layer;
 static char s_last_text[512];
 static GRect s_bounds;
 
@@ -92,6 +93,10 @@ void display_notes(void) {
   scroll_layer_set_content_size(s_scroll_layer, GSize(s_bounds.size.w, yOffset));
 }
 
+void ui_set_processing(bool processing) {
+  layer_set_hidden(text_layer_get_layer(s_processing_layer), !processing);
+}
+
 void scroll_to_selected_note(void) {
   display_notes();
 
@@ -128,6 +133,18 @@ static void window_load(Window *window) {
 
   scroll_layer_add_child(s_scroll_layer, text_layer_get_layer(s_output_layer));
 
+  // Over the bottom of the note, taller on round screens so the text clears the edge
+  int16_t banner_height = PBL_IF_ROUND_ELSE(30, 18);
+  s_processing_layer = text_layer_create(
+      GRect(0, window_bounds.size.h - banner_height, window_bounds.size.w, banner_height));
+  text_layer_set_font(s_processing_layer, fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD));
+  text_layer_set_text_alignment(s_processing_layer, GTextAlignmentCenter);
+  text_layer_set_text_color(s_processing_layer, GColorWhite);
+  text_layer_set_background_color(s_processing_layer, GColorBlack);
+  text_layer_set_text(s_processing_layer, "Processing...");
+  layer_set_hidden(text_layer_get_layer(s_processing_layer), true);
+  layer_add_child(window_layer, text_layer_get_layer(s_processing_layer));
+
   // Show the cached note right away, the phone will replace it once it's ready
   if (load_notes()) {
     display_notes();
@@ -146,6 +163,7 @@ static void window_unload(Window *window) {
     messages[i].message = NULL;
   }
   text_layer_destroy(s_output_layer);
+  text_layer_destroy(s_processing_layer);
   scroll_layer_destroy(s_scroll_layer);
   status_bar_layer_destroy(s_status_bar);
 }

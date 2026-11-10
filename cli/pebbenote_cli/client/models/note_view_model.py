@@ -23,14 +23,18 @@ class NoteViewModel:
         content (str):
         is_default (bool):
         updated_at (datetime.datetime):
+        version (int):
         actions (list[ActionModel]):
+        last_modified (str):
     """
 
     note_id: UUID
     content: str
     is_default: bool
     updated_at: datetime.datetime
+    version: int
     actions: list[ActionModel]
+    last_modified: str
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -42,10 +46,14 @@ class NoteViewModel:
 
         updated_at = self.updated_at.isoformat()
 
+        version = self.version
+
         actions = []
         for actions_item_data in self.actions:
             actions_item = actions_item_data.to_dict()
             actions.append(actions_item)
+
+        last_modified = self.last_modified
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -55,7 +63,9 @@ class NoteViewModel:
                 "content": content,
                 "is_default": is_default,
                 "updated_at": updated_at,
+                "version": version,
                 "actions": actions,
+                "last_modified": last_modified,
             }
         )
 
@@ -74,6 +84,8 @@ class NoteViewModel:
 
         updated_at = datetime.datetime.fromisoformat(d.pop("updated_at"))
 
+        version = d.pop("version")
+
         actions = []
         _actions = d.pop("actions")
         for actions_item_data in _actions:
@@ -81,12 +93,16 @@ class NoteViewModel:
 
             actions.append(actions_item)
 
+        last_modified = d.pop("last_modified")
+
         note_view_model = cls(
             note_id=note_id,
             content=content,
             is_default=is_default,
             updated_at=updated_at,
+            version=version,
             actions=actions,
+            last_modified=last_modified,
         )
 
         note_view_model.additional_properties = d

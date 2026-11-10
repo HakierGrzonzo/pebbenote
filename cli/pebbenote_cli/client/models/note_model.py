@@ -19,12 +19,14 @@ class NoteModel:
         content (str):
         is_default (bool):
         updated_at (datetime.datetime):
+        version (int):
     """
 
     note_id: UUID
     content: str
     is_default: bool
     updated_at: datetime.datetime
+    version: int
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -36,6 +38,8 @@ class NoteModel:
 
         updated_at = self.updated_at.isoformat()
 
+        version = self.version
+
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
         field_dict.update(
@@ -44,6 +48,7 @@ class NoteModel:
                 "content": content,
                 "is_default": is_default,
                 "updated_at": updated_at,
+                "version": version,
             }
         )
 
@@ -60,11 +65,14 @@ class NoteModel:
 
         updated_at = datetime.datetime.fromisoformat(d.pop("updated_at"))
 
+        version = d.pop("version")
+
         note_model = cls(
             note_id=note_id,
             content=content,
             is_default=is_default,
             updated_at=updated_at,
+            version=version,
         )
 
         note_model.additional_properties = d

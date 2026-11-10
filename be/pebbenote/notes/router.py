@@ -1,11 +1,18 @@
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Response, status
 
-from pebbenote.http_dates import is_modified_since, last_modified
+from pebbenote.http_dates import is_modified_since
 from pebbenote.notes.repository import NoteRepository
-from pebbenote.notes.schemas import NoteEditModel, NoteModel, NoteViewModel
+from pebbenote.notes.schemas import (
+    NoteConflictModel,
+    NoteEditModel,
+    NoteModel,
+    NoteUpdateModel,
+    NoteViewModel,
+)
 from pebbenote.notes.types import NoteId
 from pebbenote.notes.view import NoteView
 
@@ -17,6 +24,19 @@ async def list_notes(
     repository: Annotated[NoteRepository, Depends()],
 ) -> list[NoteModel]:
     return await repository.list_notes()
+
+
+def is_not_modified(
+    note_id: NoteId, updated_at: datetime, if_modified_since: str | None
+) -> bool:
+    """
+    Whether the client already has the note. Never for "default": the alias
+    can be moved to another note, older than what the client has, and no row
+    records when.
+    """
+    if note_id == "default":
+        return False
+    return not is_modified_since(updated_at, if_modified_since)
 
 
 @note_router.get(
@@ -31,25 +51,33 @@ async def get_note_by_id(
     if_modified_since: Annotated[str | None, Header()] = None,
 ) -> NoteViewModel | Response:
     note = await view.get_note_by_id(note_id)
-    updated_at = NoteView.updated_at(note)
+    updated_at = NoteView.updated_at(note, note.actions)
 
     headers = {
-        "Last-Modified": last_modified(updated_at),
+        "Last-Modified": note.last_modified,
         # Clients may cache the note, but must revalidate it every time
         "Cache-Control": "no-cache",
     }
-    if not is_modified_since(updated_at, if_modified_since):
+    if is_not_modified(note_id, updated_at, if_modified_since):
         return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
 
     response.headers.update(headers)
     return note
 
 
-@note_router.patch("/{note_id}")
+@note_router.patch(
+    "/{note_id}",
+    responses={
+        status.HTTP_409_CONFLICT: {
+            "model": NoteConflictModel,
+            "description": "The note has changed since base_version",
+        }
+    },
+)
 async def edit_note_by_id(
     repository: Annotated[NoteRepository, Depends()],
     note_id: NoteId,
-    note: NoteEditModel,
+    note: NoteUpdateModel,
 ) -> NoteModel:
     return await repository.update_note(note_id, note)
 

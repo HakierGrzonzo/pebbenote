@@ -215,6 +215,8 @@ export const getRequestBody = (options: ApiRequestOptions): any => {
   return undefined;
 };
 
+const REQUEST_TIMEOUT_MS = 30000;
+
 export const sendRequest = async (
   config: OpenAPIConfig,
   options: ApiRequestOptions,
@@ -227,6 +229,9 @@ export const sendRequest = async (
   const xhr = new XMLHttpRequest();
   xhr.open(options.method, url, true);
   xhr.withCredentials = config.WITH_CREDENTIALS;
+  // A request that never settles would hold up every dictation queued
+  // behind it. Above the backend's ACTION_WAIT_SECONDS.
+  xhr.timeout = REQUEST_TIMEOUT_MS;
 
   Object.entries(headers).forEach(([key, value]) => {
     xhr.setRequestHeader(key, value);
@@ -236,6 +241,7 @@ export const sendRequest = async (
     xhr.onload = () => resolve(xhr);
     xhr.onabort = () => reject(new Error("Request aborted"));
     xhr.onerror = () => reject(new Error("Network error"));
+    xhr.ontimeout = () => reject(new Error("Request timed out"));
     xhr.send(body ?? formData);
 
     onCancel(() => xhr.abort());

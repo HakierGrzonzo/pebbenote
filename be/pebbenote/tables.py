@@ -13,6 +13,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -46,14 +47,13 @@ class Note(Base):
         Uuid, primary_key=True, server_default=func.gen_random_uuid()
     )
     actions: Mapped[list["NoteAction"]] = relationship(back_populates="note")
-    # The content of a note is the text of its latest revision
+    # The content of a note is the text of its latest revision, which is
+    # also when the note was last updated
     revisions: Mapped[list["NoteRevision"]] = relationship(back_populates="note")
 
     owner = mapped_column(Text, nullable=False)
 
     is_default = mapped_column(Boolean, nullable=False, server_default=false())
-
-    updated_at = updated_at_column()
 
     __table_args__ = (
         # At most one default note per owner
@@ -129,17 +129,47 @@ class NoteRevision(Base):
     __table_args__ = (Index("ix_note_revision_note_created", "note_id", "created_at"),)
 
 
-class UserInstruction(Base):
-    __tablename__ = "user_instruction"
-    instruction_id = mapped_column(
+class InstructionList(Base):
+    """The standing instructions of a user, the row to lock when they change"""
+
+    __tablename__ = "instruction_list"
+    instruction_list_id = mapped_column(
         Uuid, primary_key=True, server_default=func.gen_random_uuid()
     )
 
-    owner = mapped_column(Text, nullable=False, index=True)
-    instruction_text = mapped_column(Text, nullable=False)
+    owner = mapped_column(Text, nullable=False, unique=True)
 
+    # The instructions are the ones of the latest revision
+    revisions: Mapped[list["InstructionRevision"]] = relationship(
+        back_populates="instruction_list"
+    )
+
+
+class InstructionRevision(Base):
+    """A snapshot of a user's standing instructions after a change"""
+
+    __tablename__ = "instruction_revision"
+    instruction_revision_id = mapped_column(
+        Uuid, primary_key=True, server_default=func.gen_random_uuid()
+    )
+
+    instruction_list_id = mapped_column(
+        ForeignKey(InstructionList.instruction_list_id), nullable=False
+    )
+    instructions: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False)
+
+    # Set from Python so flushed objects keep a loaded value
     created_at = mapped_column(
         TIMESTAMP(timezone=True),
         nullable=False,
+        default=utc_now,
         server_default=func.clock_timestamp(),
+    )
+
+    instruction_list: Mapped[InstructionList] = relationship(back_populates="revisions")
+
+    __table_args__ = (
+        Index(
+            "ix_instruction_revision_list_created", "instruction_list_id", "created_at"
+        ),
     )

@@ -20,12 +20,29 @@ poetry install
 ## Usage
 
 ```sh
-pebbenote            # edit the default note
-pebbenote <note_id>  # edit a specific note
-pebbenote list       # list notes (* = default)
-pebbenote login      # force a new login
-pebbenote > note.md  # piped output prints the note instead of opening the editor
+pebbenote               # edit the default note
+pebbenote <note_id>     # edit a specific note
+pebbenote list          # list notes (* = default)
+pebbenote instructions  # edit the standing instructions as a list
+pebbenote login         # force a new login
+pebbenote > note.md     # piped output prints the note instead of opening the editor
 ```
+
+`pebbenote instructions` opens the standing instructions (the ones the assistant follows on every note) as a list, one `- ` item each. Add, reword or delete items; the saved list replaces the stored one, and the backend then applies it in the background to every note. `--no-apply` only saves the list. Piped, it prints the list.
+
+### Conflicts
+
+An edit is sent with the version it was made on. When the note or the instructions were changed elsewhere while the editor was open (on the watch, by the assistant, in another terminal), the backend refuses the edit and the CLI merges both like git: changes in different places are combined and synced without asking, changes to the same lines reopen the editor with both versions between markers:
+
+```
+<<<<<<< yours
+- oat milk
+=======
+- soy milk
+>>>>>>> server
+```
+
+Edit that into what you want and quit. If markers are still there, nothing is synced and the text is kept in `$XDG_STATE_HOME/pebbenote/unresolved.md`.
 
 ## Configuration
 

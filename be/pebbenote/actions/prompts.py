@@ -58,6 +58,10 @@ follow them. If the note already follows them, respond with the note unchanged.
 Respond with the whole note in the JSON list format.
 """.strip()
 
+# Stored as the action of a revision made by applying edited instructions, so
+# the history shows it as asked for by the user
+apply_instructions_action_text = "Apply my standing instructions to the note."
+
 rewrite_instruction_system_prompt = """
 The user dictated a standing instruction about how their notes should be handled.
 Rewrite it as one short sentence in the first person, starting with "I should",

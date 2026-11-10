@@ -2,8 +2,8 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-import type { NoteEditModel } from "../models/NoteEditModel";
 import type { NoteModel } from "../models/NoteModel";
+import type { NoteUpdateModel } from "../models/NoteUpdateModel";
 import type { NoteViewModel } from "../models/NoteViewModel";
 import type { CancelablePromise } from "../core/CancelablePromise";
 import type { BaseHttpRequest } from "../core/BaseHttpRequest";
@@ -73,7 +73,7 @@ export class NotesService {
    */
   public editNoteById(
     noteId: string,
-    requestBody: NoteEditModel,
+    requestBody: NoteUpdateModel,
   ): CancelablePromise<NoteModel> {
     return this.httpRequest.request({
       method: "PATCH",
@@ -84,6 +84,7 @@ export class NotesService {
       body: requestBody,
       mediaType: "application/json",
       errors: {
+        409: `The note has changed since base_version`,
         422: `Validation Error`,
       },
     });

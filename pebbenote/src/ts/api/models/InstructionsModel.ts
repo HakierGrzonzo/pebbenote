@@ -2,6 +2,7 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export type NoteEditModel = {
-  content: string;
+export type InstructionsModel = {
+  instructions: Array<string>;
+  version: number;
 };
