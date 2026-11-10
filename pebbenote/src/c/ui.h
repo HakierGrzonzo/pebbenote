@@ -14,3 +14,5 @@ void display_sign_in(void);
 void display_notes(void);
 // Redraws the note and scrolls so the selected line is in view
 void scroll_to_selected_note(void);
+// Shows or hides the banner telling that dictated actions are still being applied
+void ui_set_processing(bool processing);

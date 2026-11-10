@@ -130,6 +130,7 @@ static void handle_inbox(DictionaryIterator *iter) {
 
   s_sign_in_required = dict_find(iter, MESSAGE_KEY_SignInRequired) != NULL;
   if (s_sign_in_required) {
+    ui_set_processing(false);
     display_sign_in();
     return;
   }
@@ -140,7 +141,22 @@ static void handle_inbox(DictionaryIterator *iter) {
     return;
   }
 
+  // Dictated actions are applied in the background, the note stays usable meanwhile
+  Tuple *processing_tuple = dict_find(iter, MESSAGE_KEY_Processing);
+  bool processing = processing_tuple && processing_tuple->value->int32 != 0;
+
   if (!number_on_lines) {
+    if (processing) {
+      // The action was accepted: back from "Sending..." to the note we have
+      if (numberOfMessages == 0) {
+        display_text("Note is empty");
+      } else {
+        display_notes();
+      }
+      ui_set_processing(true);
+      return;
+    }
+    ui_set_processing(false);
     Tuple *status_tuple = dict_find(iter, MESSAGE_KEY_Status);
     if (status_tuple && status_tuple->type == TUPLE_CSTRING) {
       display_text(status_tuple->value->cstring);
@@ -201,6 +217,9 @@ static void handle_inbox(DictionaryIterator *iter) {
 
   save_notes();
   display_notes();
+  if (processing_tuple) {
+    ui_set_processing(processing);
+  }
 
   Tuple *vibe_tuple = dict_find(iter, MESSAGE_KEY_Vibe);
   if (vibe_tuple) {

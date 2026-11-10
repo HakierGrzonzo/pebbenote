@@ -1,7 +1,7 @@
 {
   "name": "pebbenote",
   "author": "HakierGrzonzo",
-  "version": "1.1.4",
+  "version": "1.2.0",
   "keywords": [
     "Dictation",
     "Note Taking",
@@ -30,7 +30,8 @@
       "Result[20]",
       "NumberOfLines",
       "SignInRequired",
-      "Status"
+      "Status",
+      "Processing"
     ],
     "resources": {
       "media": [

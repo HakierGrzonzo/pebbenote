@@ -65,13 +65,22 @@ curl -H "Authorization: Bearer $TOKEN" localhost:8000/note/default
 
 `POST /action/` waits `ACTION_WAIT_SECONDS` for the LLM and answers `200` with
 the note, or `202` while it is still running: then poll `GET /note/default`
-until the action's `status` is no longer `pending`.
+until the action's `status` is no longer `pending`. An action queued behind
+another pending one of the same note gets its `202` at once.
+
+Edits name the version they are based on (`base_version` in `PATCH /note/{id}`
+and `PUT /instruction/`, the `version` of the last GET); an outdated one is a
+`409` with the current state.
 
 Use a throwaway user for these tests, so the developer's own notes stay intact.
 
 Watchapp screenshots: `pebbenote/scripts/screenshots.sh [platform...]` (signs the
 emulators in as `dev` with `keycloak/approve-device.sh`, about a minute per
 platform), then look at each PNG in `pebbenote/screenshots/`.
+An emulator stays signed in as the user it first got, whatever user a later
+run asks for: check whose note it shows before dictating into it, `pebble wipe`
+signs it out. `pebble transcribe "<text>"` keeps running and answers the
+dictation a Select press opens, a second Select confirms the text.
 `pebbenote/scripts/publish.sh "<release notes>"` publishes them to the store, as
 part of a release that goes live at once (bump the version first).
 Local Postgres is at `127.0.0.1:5432`, password `postgres`
