@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -25,6 +26,19 @@ async def list_notes(
     return await repository.list_notes()
 
 
+def is_not_modified(
+    note_id: NoteId, updated_at: datetime, if_modified_since: str | None
+) -> bool:
+    """
+    Whether the client already has the note. Never for "default": the alias
+    can be moved to another note, older than what the client has, and no row
+    records when.
+    """
+    if note_id == "default":
+        return False
+    return not is_modified_since(updated_at, if_modified_since)
+
+
 @note_router.get(
     "/{note_id}",
     response_model=NoteViewModel,
@@ -44,7 +58,7 @@ async def get_note_by_id(
         # Clients may cache the note, but must revalidate it every time
         "Cache-Control": "no-cache",
     }
-    if not is_modified_since(updated_at, if_modified_since):
+    if is_not_modified(note_id, updated_at, if_modified_since):
         return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers=headers)
 
     response.headers.update(headers)
