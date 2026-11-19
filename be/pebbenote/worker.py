@@ -1,6 +1,7 @@
 import asyncio
 
 from taskiq import SmartRetryMiddleware, TaskiqMessage, TaskiqMiddleware
+from taskiq.middlewares.opentelemetry_middleware import OpenTelemetryMiddleware
 from taskiq_redis import RedisAsyncResultBackend, RedisStreamBroker
 
 from .config import settings
@@ -35,5 +36,9 @@ broker = (
             use_jitter=True,
             use_delay_exponent=True,
         ),
+        # Last, so the retry delay isn't counted as execution time. Carries
+        # the trace in the message labels, so a task continues the trace of
+        # whatever kicked it. A no-op unless telemetry is set up.
+        OpenTelemetryMiddleware(),
     )
 )

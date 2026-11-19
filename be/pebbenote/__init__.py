@@ -12,10 +12,12 @@ from .config import settings
 from .instructions.router import instruction_router
 from .notes.exceptions import NoteDoesNotExist
 from .notes.router import note_router
+from .telemetry import setup_telemetry
 from .versioning import VersionConflict
 from .worker import broker
 
 logging.basicConfig(level=logging.INFO)
+setup_telemetry()
 
 
 is_local = settings.ENVIRONMENT == "local"
