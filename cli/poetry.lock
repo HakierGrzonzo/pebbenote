@@ -44,6 +44,21 @@ typing_extensions = {version = ">=4.16.0", markers = "python_version < \"3.15\""
 trio = ["trio (>=0.32.0)"]
 
 [[package]]
+name = "argcomplete"
+version = "3.7.2"
+description = "Bash tab completion for argparse"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "argcomplete-3.7.2-py3-none-any.whl", hash = "sha256:6029205678bdd9c1c728a155f5f9ecf5812393f969eef58807641a2bc2aa5b19"},
+    {file = "argcomplete-3.7.2.tar.gz", hash = "sha256:aad8b69a0b9969edb62db0d1752354c0d50717b10e0cbb00e2a958381b9fc6b9"},
+]
+
+[package.extras]
+test = ["coverage", "mypy", "pexpect", "ruff", "wheel"]
+
+[[package]]
 name = "attrs"
 version = "26.1.0"
 description = "Classes Without Boilerplate"
@@ -709,4 +724,4 @@ typing-extensions = ">=4.15.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.13"
-content-hash = "218930f22a185afd4a521cbd384baed847642eb31864181e1320c5f764af03f9"
+content-hash = "42cfba7e8c94299973f28506236e5160298fb86f8f0f0db41c313aad789d9c4e"

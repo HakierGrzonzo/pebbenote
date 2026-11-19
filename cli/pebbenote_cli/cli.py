@@ -1,7 +1,10 @@
+# PYTHON_ARGCOMPLETE_OK
 """Edit a Pebbenote note in $EDITOR and sync it with the backend on quit."""
 
 import argparse
 import sys
+
+import argcomplete
 
 from pebbenote_cli import api, auth
 from pebbenote_cli.client.api.actions import apply_action
@@ -142,6 +145,24 @@ def cmd_action(config, args):
         sys.stdout.write("\n")
 
 
+def complete_note_ids(**_kwargs):
+    """Completes note ids, with each note's first line as description."""
+    ids = {"default": "the default note"}
+    try:
+        # Completion runs on every Tab: never start a login from it
+        notes = api.call(load_config(), list_notes, interactive=False)
+    except Exception:
+        # Logged out, offline or a broken config: complete what we know
+        return ids
+    for note in notes:
+        ids[str(note.note_id)] = note.content.splitlines()[0] if note.content else ""
+    return ids
+
+
+def cmd_completion(_config, args):
+    sys.stdout.write(argcomplete.shellcode(["pebbenote"], shell=args.shell))
+
+
 def cmd_login(config, _args):
     auth.login(config)
     print("Logged in.", file=sys.stderr)
@@ -150,9 +171,13 @@ def cmd_login(config, _args):
 def main():
     parser = argparse.ArgumentParser(prog="pebbenote", description=__doc__)
     sub = parser.add_subparsers(dest="command")
+    # `pebbenote <note_id>` edits that note, so complete ids next to commands
+    sub.completer = complete_note_ids
 
     edit = sub.add_parser("edit", help="edit a note (default command)")
-    edit.add_argument("note_id", nargs="?", default="default")
+    edit.add_argument(
+        "note_id", nargs="?", default="default"
+    ).completer = complete_note_ids
     edit.set_defaults(func=cmd_edit)
 
     sub.add_parser("list", help="list notes").set_defaults(func=cmd_list)
@@ -167,9 +192,17 @@ def main():
     instructions.set_defaults(func=cmd_instructions)
     action = sub.add_parser("action", help="ask the assistant to change a note")
     action.add_argument("text", nargs="+", help="what to do, e.g. add oat milk")
-    action.add_argument("--note", default="default", help="note id (default note)")
+    action.add_argument(
+        "--note", default="default", help="note id (default note)"
+    ).completer = complete_note_ids
     action.set_defaults(func=cmd_action)
     sub.add_parser("login", help="force a new login").set_defaults(func=cmd_login)
+    completion = sub.add_parser("completion", help="print the shell completion script")
+    completion.add_argument("shell", choices=["bash", "zsh", "fish"])
+    completion.set_defaults(func=cmd_completion)
+
+    # Answers the shell's completion request and exits, when there is one
+    argcomplete.autocomplete(parser)
 
     argv = sys.argv[1:]
     # `edit` is the default command: `pebbenote` and `pebbenote <note_id>`

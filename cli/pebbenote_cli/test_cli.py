@@ -340,6 +340,45 @@ class MainTestCase(TestCase):
         self.login.assert_called_once_with(CONFIG)
         self.assertIn("Logged in", stderr)
 
+    def test_completion_prints_the_shell_script(self):
+        for shell in ("bash", "zsh", "fish"):
+            with self.subTest(shell=shell):
+                stdout, _ = self.run_cli("completion", shell)
+
+                self.assertIn("pebbenote", stdout)
+                self.assertIn("_ARGCOMPLETE", stdout)
+        self.call.assert_not_called()
+
+    def test_complete_note_ids(self):
+        other_id = UUID("00000000-0000-0000-0000-00000000000b")
+        self.call.return_value = [
+            NOTE,
+            NoteModel(
+                note_id=other_id,
+                content="",
+                is_default=False,
+                updated_at=UPDATED_AT,
+                version=1,
+            ),
+        ]
+
+        self.assertEqual(
+            cli.complete_note_ids(prefix=""),
+            {
+                "default": "the default note",
+                str(NOTE_ID): "Shopping",
+                str(other_id): "",
+            },
+        )
+        self.call.assert_called_once_with(CONFIG, list_notes, interactive=False)
+
+    def test_complete_note_ids_when_logged_out(self):
+        self.call.side_effect = CliError("Not logged in")
+
+        self.assertEqual(
+            cli.complete_note_ids(prefix=""), {"default": "the default note"}
+        )
+
     def test_cli_error_exits_with_message(self):
         self.call.side_effect = CliError("boom")
 
