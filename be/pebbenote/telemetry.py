@@ -30,8 +30,39 @@ from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.sdk.trace.sampling import (
+    Decision,
+    ParentBased,
+    Sampler,
+    SamplingResult,
+)
+from opentelemetry.trace import SpanKind
 
 _configured = False
+
+
+class SkipBackgroundCalls(Sampler):
+    """
+    Drops traces that start with a client call. Outside a request or a task
+    those are background noise, like the worker polling Redis for tasks.
+    """
+
+    def should_sample(
+        self,
+        parent_context,
+        trace_id,
+        name,
+        kind=None,
+        attributes=None,
+        links=None,
+        trace_state=None,
+    ):
+        if kind == SpanKind.CLIENT:
+            return SamplingResult(Decision.DROP)
+        return SamplingResult(Decision.RECORD_AND_SAMPLE, attributes)
+
+    def get_description(self) -> str:
+        return "SkipBackgroundCalls"
 
 
 def telemetry_enabled() -> bool:
@@ -54,7 +85,9 @@ def setup_telemetry() -> None:
     resource = Resource.create()
 
     if _signal_enabled("TRACES"):
-        tracer_provider = TracerProvider(resource=resource)
+        tracer_provider = TracerProvider(
+            resource=resource, sampler=ParentBased(root=SkipBackgroundCalls())
+        )
         tracer_provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter()))
         trace.set_tracer_provider(tracer_provider)
 
