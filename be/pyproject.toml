@@ -21,6 +21,9 @@ taskiq = {version = "^0.13.0", extras = ["reload", "opentelemetry"]}
 taskiq-redis = "^1.2.4"
 opentelemetry-sdk = "^1.45"
 opentelemetry-exporter-otlp-proto-http = "^1.45"
+opentelemetry-instrumentation-redis = "^0.66b2"
+opentelemetry-instrumentation-httpx = "^0.66b2"
+opentelemetry-instrumentation-asyncpg = "^0.66b2"
 
 
 [tool.poetry.group.dev.dependencies]

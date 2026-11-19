@@ -6,7 +6,8 @@ comes from the standard OTEL_* variables: OTEL_SERVICE_NAME names the process,
 OTEL_{TRACES,METRICS,LOGS}_EXPORTER=none turns off one signal.
 
 FastAPI and the taskiq OpenTelemetryMiddleware use the global providers, so
-setting them here is enough to instrument requests and tasks.
+setting them here is enough to instrument requests and tasks. Queries,
+Redis (the broker) and httpx (the Ollama client) are instrumented here.
 """
 
 import logging
@@ -19,6 +20,9 @@ from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
     OTLPMetricExporter,
 )
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.asyncpg import AsyncPGInstrumentor
+from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk.metrics import MeterProvider
@@ -69,3 +73,8 @@ def setup_telemetry() -> None:
         set_logger_provider(logger_provider)
         # Existing loggers get exported too, with the ids of the current span
         logging.getLogger().addHandler(LoggingHandler(logger_provider=logger_provider))
+
+    # On the driver, the SQLAlchemy instrumentation doesn't support 2.1 yet
+    AsyncPGInstrumentor().instrument()
+    RedisInstrumentor().instrument()
+    HTTPXClientInstrumentor().instrument()

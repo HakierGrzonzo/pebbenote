@@ -1608,6 +1608,69 @@ packaging = ">=18.0"
 wrapt = ">=1.0.0,<3.0.0"
 
 [[package]]
+name = "opentelemetry-instrumentation-asyncpg"
+version = "0.66b2"
+description = "OpenTelemetry instrumentation for AsyncPG"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "opentelemetry_instrumentation_asyncpg-0.66b2-py3-none-any.whl", hash = "sha256:d1f83b07390f0012aff36aa8f72e4dfd891b397ccd50cecd1b2f025a8b2863ee"},
+    {file = "opentelemetry_instrumentation_asyncpg-0.66b2.tar.gz", hash = "sha256:b7e320f2c85056ce0b65ac112126b462abda7c4b0538c2ececea231a1bc81a0c"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.12,<2.0"
+opentelemetry-instrumentation = "0.66b2"
+opentelemetry-semantic-conventions = "0.66b2"
+
+[package.extras]
+instruments = ["asyncpg (>=0.12.0)"]
+
+[[package]]
+name = "opentelemetry-instrumentation-httpx"
+version = "0.66b2"
+description = "OpenTelemetry HTTPX Instrumentation"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "opentelemetry_instrumentation_httpx-0.66b2-py3-none-any.whl", hash = "sha256:93e2b6ab1a505d76ec3d98abcf7e8527d4712167d6c3b5ebbb9c68d9309d9ba5"},
+    {file = "opentelemetry_instrumentation_httpx-0.66b2.tar.gz", hash = "sha256:b4c81e4a6dc7b8d7cb2d3088eb8848f6db6bd4abdc443ac9586ec176f1460187"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.12,<2.0"
+opentelemetry-instrumentation = "0.66b2"
+opentelemetry-semantic-conventions = "0.66b2"
+opentelemetry-util-http = "0.66b2"
+wrapt = ">=1.0.0,<3.0.0"
+
+[package.extras]
+instruments-any = ["httpx (>=0.18.0)", "httpx2 (>=2.0.0)"]
+
+[[package]]
+name = "opentelemetry-instrumentation-redis"
+version = "0.66b2"
+description = "OpenTelemetry Redis instrumentation"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "opentelemetry_instrumentation_redis-0.66b2-py3-none-any.whl", hash = "sha256:49c729ec4036020a8f9a0bfb84760d42215d3fbfbc4aa1ec89c6199f67c045b0"},
+    {file = "opentelemetry_instrumentation_redis-0.66b2.tar.gz", hash = "sha256:15650fda1f51693b607eae8448ebfd79ad4679efb2f6a1e8c5aca5f6effd0ed1"},
+]
+
+[package.dependencies]
+opentelemetry-api = ">=1.12,<2.0"
+opentelemetry-instrumentation = "0.66b2"
+opentelemetry-semantic-conventions = "0.66b2"
+wrapt = ">=1.12.1"
+
+[package.extras]
+instruments = ["redis (>=2.6)"]
+
+[[package]]
 name = "opentelemetry-proto"
 version = "1.45.2"
 description = "OpenTelemetry Python Proto"
@@ -1657,6 +1720,18 @@ files = [
 [package.dependencies]
 opentelemetry-api = "1.45.2"
 typing-extensions = ">=4.5.0"
+
+[[package]]
+name = "opentelemetry-util-http"
+version = "0.66b2"
+description = "Web util for OpenTelemetry"
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "opentelemetry_util_http-0.66b2-py3-none-any.whl", hash = "sha256:c4bb5d6744e60353bcaa3e325bc529a1515346b51cb4d9c8e5b730579337e06d"},
+    {file = "opentelemetry_util_http-0.66b2.tar.gz", hash = "sha256:7ba066ea609202e474679ddf1d0f753a1e6619bd206b36afaecba4bbb86e25d0"},
+]
 
 [[package]]
 name = "packaging"
@@ -2786,4 +2861,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.15"
-content-hash = "f8234c9c0b2c2ae22b5cc15dd9900bff03377e2faa6337d8907f4010b5d778c2"
+content-hash = "287823e323674bb7d13ed197f32fe83fc87d6246dd1fce2e721947177b61a85a"
