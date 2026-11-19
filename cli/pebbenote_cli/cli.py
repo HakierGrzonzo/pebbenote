@@ -4,12 +4,18 @@ import argparse
 import sys
 
 from pebbenote_cli import api, auth
+from pebbenote_cli.client.api.actions import apply_action
 from pebbenote_cli.client.api.instructions import (
     list_instructions,
     replace_instructions,
 )
 from pebbenote_cli.client.api.notes import edit_note_by_id, get_note_by_id, list_notes
-from pebbenote_cli.client.models import InstructionsEditModel, NoteUpdateModel
+from pebbenote_cli.client.models import (
+    ActionAcceptedModel,
+    ActionEditModel,
+    InstructionsEditModel,
+    NoteUpdateModel,
+)
 from pebbenote_cli.config import UNRESOLVED_FILE, load_config
 from pebbenote_cli.editor import edit_text
 from pebbenote_cli.errors import CliError, ConflictError
@@ -117,6 +123,25 @@ def cmd_instructions(config, args):
     print(f"{message}.", file=sys.stderr)
 
 
+def cmd_action(config, args):
+    result = api.call(
+        config,
+        apply_action,
+        body=ActionEditModel(note_id=args.note, action=" ".join(args.text)),
+    )
+    if isinstance(result, ActionAcceptedModel):
+        print(
+            "Action is still being applied; "
+            "the note will be updated in the background.",
+            file=sys.stderr,
+        )
+        return
+    print("Action applied.", file=sys.stderr)
+    sys.stdout.write(result.content)
+    if result.content and not result.content.endswith("\n"):
+        sys.stdout.write("\n")
+
+
 def cmd_login(config, _args):
     auth.login(config)
     print("Logged in.", file=sys.stderr)
@@ -140,6 +165,10 @@ def main():
         help="only save the instructions, do not apply them to existing notes",
     )
     instructions.set_defaults(func=cmd_instructions)
+    action = sub.add_parser("action", help="ask the assistant to change a note")
+    action.add_argument("text", nargs="+", help="what to do, e.g. add oat milk")
+    action.add_argument("--note", default="default", help="note id (default note)")
+    action.set_defaults(func=cmd_action)
     sub.add_parser("login", help="force a new login").set_defaults(func=cmd_login)
 
     argv = sys.argv[1:]

@@ -24,11 +24,14 @@ pebbenote               # edit the default note
 pebbenote <note_id>     # edit a specific note
 pebbenote list          # list notes (* = default)
 pebbenote instructions  # edit the standing instructions as a list
+pebbenote action <text> # ask the assistant to change the default note (--note <id> for another)
 pebbenote login         # force a new login
 pebbenote > note.md     # piped output prints the note instead of opening the editor
 ```
 
 `pebbenote instructions` opens the standing instructions (the ones the assistant follows on every note) as a list, one `- ` item each. Add, reword or delete items; the saved list replaces the stored one, and the backend then applies it in the background to every note. `--no-apply` only saves the list. Piped, it prints the list.
+
+`pebbenote action add oat milk` sends the action to the assistant and prints the updated note. If the assistant takes longer than the backend waits, the CLI says so and quits; the note is updated in the background.
 
 ### Conflicts
 

@@ -5,9 +5,14 @@ from unittest import TestCase, mock
 from uuid import UUID
 
 from . import cli
+from .client.api.actions import apply_action
 from .client.api.instructions import list_instructions, replace_instructions
 from .client.api.notes import edit_note_by_id, get_note_by_id, list_notes
 from .client.models import (
+    ActionAcceptedModel,
+    ActionEditModel,
+    ActionModel,
+    ActionStatus,
     InstructionsEditModel,
     InstructionsModel,
     NoteModel,
@@ -282,6 +287,52 @@ class MainTestCase(TestCase):
         )
         self.assertIn("Merged with changes made on the server", stderr)
         self.assertIn("Instructions synced (3)", stderr)
+
+    def test_action_prints_updated_note(self):
+        self.call.return_value = NoteModel(
+            note_id=NOTE_ID,
+            content="Shopping\n- milk\n- oat milk\n",
+            is_default=True,
+            updated_at=UPDATED_AT,
+            version=4,
+        )
+        stdout, stderr = self.run_cli("action", "add", "oat", "milk")
+
+        self.call.assert_called_once_with(
+            CONFIG,
+            apply_action,
+            body=ActionEditModel(note_id="default", action="add oat milk"),
+        )
+        self.assertEqual(stdout, "Shopping\n- milk\n- oat milk\n")
+        self.assertIn("Action applied", stderr)
+
+    def test_action_on_another_note(self):
+        self.call.return_value = NOTE
+        self.run_cli("action", "--note", str(NOTE_ID), "sort it")
+
+        self.call.assert_called_once_with(
+            CONFIG,
+            apply_action,
+            body=ActionEditModel(note_id=str(NOTE_ID), action="sort it"),
+        )
+
+    def test_action_still_running_quits(self):
+        self.call.return_value = ActionAcceptedModel(
+            action=ActionModel(
+                note_action_id=UUID("00000000-0000-0000-0000-00000000000b"),
+                note_id=NOTE_ID,
+                action="add oat milk",
+                status=ActionStatus.PENDING,
+                created_at=UPDATED_AT,
+                updated_at=UPDATED_AT,
+            ),
+            note_last_modified="Thu, 01 Jan 2026 00:00:00 GMT",
+        )
+        stdout, stderr = self.run_cli("action", "add oat milk")
+
+        self.call.assert_called_once()
+        self.assertEqual(stdout, "")
+        self.assertIn("updated in the background", stderr)
 
     def test_login(self):
         _, stderr = self.run_cli("login")

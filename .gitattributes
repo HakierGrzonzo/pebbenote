@@ -1,0 +1,4 @@
+poetry.lock -diff
+package.lock -diff
+/cli/pebbenote_cli/client/* -diff
+/pebbenote/src/ts/api/* -diff
