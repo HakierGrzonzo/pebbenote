@@ -74,6 +74,11 @@ and `PUT /instruction/`, the `version` of the last GET); an outdated one is a
 
 Use a throwaway user for these tests, so the developer's own notes stay intact.
 
+Traces, metrics and logs land in Grafana at `localhost:3000` (the `otel-lgtm`
+service); a trace of `POST /action/` shows the task, the queries and the
+`chat <model>` spans with token counts. The Grafana API answers without auth
+locally, e.g. `curl 'localhost:3000/api/datasources/proxy/uid/tempo/api/search?tags=service.name%3Dpebbenote-worker'`.
+
 Watchapp screenshots: `pebbenote/scripts/screenshots.sh [platform...]` (signs the
 emulators in as `dev` with `keycloak/approve-device.sh`, about a minute per
 platform), then look at each PNG in `pebbenote/screenshots/`.

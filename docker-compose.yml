@@ -52,6 +52,16 @@ services:
         condition: service_healthy
     restart: on-failure
 
+  # OpenTelemetry collector with Tempo, Loki, Prometheus and Grafana (:3000)
+  otel-lgtm:
+    image: grafana/otel-lgtm:0.40.0
+    ports:
+      - "3000:3000"
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - lgtm_data:/data
+
   be:
     build:
       context: ./be
@@ -75,6 +85,8 @@ services:
       OIDC_ISSUER: "http://localhost:8080/realms/pebbenote"
       OIDC_AUDIENCE: "pebbenote-be"
       REDIS_URL: "redis://localhost:6379"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318"
+      OTEL_SERVICE_NAME: pebbenote-be
     depends_on:
       db:
         condition: service_healthy
@@ -106,6 +118,8 @@ services:
       OIDC_ISSUER: "http://localhost:8080/realms/pebbenote"
       OIDC_AUDIENCE: "pebbenote-be"
       REDIS_URL: "redis://localhost:6379"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:4318"
+      OTEL_SERVICE_NAME: pebbenote-worker
     depends_on:
       db:
         condition: service_healthy
@@ -116,4 +130,6 @@ services:
 
 volumes:
   app_data:
+    driver: local
+  lgtm_data:
     driver: local

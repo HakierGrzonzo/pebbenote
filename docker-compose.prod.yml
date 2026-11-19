@@ -14,6 +14,7 @@ x-be-env: &be-env
   OIDC_ISSUER: ${OIDC_ISSUER:?}
   OIDC_JWKS_URL: ${OIDC_JWKS_URL:-http://keycloak:8080/realms/pebbenote/protocol/openid-connect/certs}
   OIDC_AUDIENCE: "pebbenote-be"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-lgtm:4318"
 
 services:
   db:
@@ -67,10 +68,22 @@ services:
         condition: service_healthy
     restart: on-failure
 
+  # OpenTelemetry collector with Tempo, Loki, Prometheus and Grafana. Grafana
+  # is meant to sit behind a reverse proxy on the LAN, OTLP stays internal.
+  otel-lgtm:
+    image: grafana/otel-lgtm:0.40.0
+    restart: always
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - lgtm_data:/data
+
   be:
     build:
       context: ./be
-    environment: *be-env
+    environment:
+      <<: *be-env
+      OTEL_SERVICE_NAME: pebbenote-be
     depends_on:
       db:
         condition: service_healthy
@@ -84,7 +97,9 @@ services:
   worker:
     build:
       context: ./be
-    environment: *be-env
+    environment:
+      <<: *be-env
+      OTEL_SERVICE_NAME: pebbenote-worker
     depends_on:
       db:
         condition: service_healthy
@@ -95,4 +110,6 @@ services:
 
 volumes:
   app_data:
+    driver: local
+  lgtm_data:
     driver: local

@@ -39,6 +39,13 @@ docker compose up --build --watch
 
 Then, run the migrations via `docker compose exec be poetry run alembic upgrade head`
 
+Traces, metrics and logs of the API and the worker go over OpenTelemetry to the
+`otel-lgtm` container: open Grafana at http://localhost:3000 and use Explore
+(Tempo for traces, Prometheus for metrics, Loki for logs). One dictation is one
+trace, from the request through the queued task to Postgres and Ollama. The
+backend exports only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (tests run
+without it); `OTEL_SDK_DISABLED=true` turns it off.
+
 In the `./pebbenote` folder, run:
 
 - `npm install`, to install js dependencies and tooling
@@ -80,3 +87,6 @@ cp .env.prod.example .env.prod   # then fill in the values
 docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 docker compose -f docker-compose.prod.yml --env-file .env.prod exec be poetry run alembic upgrade head
 ```
+
+Grafana with the backend's telemetry is published on `GRAFANA_PORT` (default
+3000), meant to be put behind a reverse proxy on the LAN.
