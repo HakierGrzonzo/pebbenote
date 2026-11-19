@@ -26,12 +26,25 @@ pebbenote list          # list notes (* = default)
 pebbenote instructions  # edit the standing instructions as a list
 pebbenote action <text> # ask the assistant to change the default note (--note <id> for another)
 pebbenote login         # force a new login
+pebbenote completion <shell>  # print the completion script for bash, zsh or fish
 pebbenote > note.md     # piped output prints the note instead of opening the editor
 ```
 
 `pebbenote instructions` opens the standing instructions (the ones the assistant follows on every note) as a list, one `- ` item each. Add, reword or delete items; the saved list replaces the stored one, and the backend then applies it in the background to every note. `--no-apply` only saves the list. Piped, it prints the list.
 
 `pebbenote action add oat milk` sends the action to the assistant and prints the updated note. If the assistant takes longer than the backend waits, the CLI says so and quits; the note is updated in the background.
+
+### Shell completion
+
+Commands, options and note ids complete on Tab once the script is loaded:
+
+```sh
+pebbenote completion fish > ~/.config/fish/completions/pebbenote.fish
+eval "$(pebbenote completion bash)"   # in ~/.bashrc
+eval "$(pebbenote completion zsh)"    # in ~/.zshrc, after compinit
+```
+
+Note ids are fetched from the backend with each note's first line as description (fish and zsh show it). That needs a login (`pebbenote login`): completion never starts one, when logged out or offline it only offers `default`.
 
 ### Conflicts
 
