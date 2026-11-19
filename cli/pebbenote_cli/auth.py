@@ -79,7 +79,14 @@ def login(config: Config):
     raise CliError("Login timed out")
 
 
-def refresh(config: Config, tokens):
+def require_login(config: Config, interactive):
+    """Starts a new login, or fails when there is no one to sign in."""
+    if not interactive:
+        raise CliError("Not logged in; run `pebbenote login`")
+    return login(config)
+
+
+def refresh(config: Config, tokens, interactive=True):
     status, token = request(
         "POST",
         f"{config.issuer}/protocol/openid-connect/token",
@@ -94,16 +101,20 @@ def refresh(config: Config, tokens):
     # Don't start a new login when the server is down, only when the refresh
     # token was rejected
     check_available(config, status)
-    return login(config)
+    return require_login(config, interactive)
 
 
-def access_token(config: Config, force_refresh=False):
+def access_token(config: Config, force_refresh=False, interactive=True):
+    """
+    Returns a valid access token, refreshing it when needed. Without a usable
+    token it logs in, unless `interactive` is false: then it raises CliError.
+    """
     tokens = load_tokens()
     if not tokens:
-        tokens = login(config)
+        tokens = require_login(config, interactive)
     elif force_refresh or tokens["expires_at"] - EXPIRY_MARGIN <= time.time():
         if tokens.get("refresh_token"):
-            tokens = refresh(config, tokens)
+            tokens = refresh(config, tokens, interactive)
         else:
-            tokens = login(config)
+            tokens = require_login(config, interactive)
     return tokens["access_token"]

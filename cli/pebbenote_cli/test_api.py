@@ -22,7 +22,7 @@ class CallTestCase(TestCase):
     def setUp(self) -> None:
         access_token = mock.patch(
             "pebbenote_cli.api.access_token",
-            side_effect=lambda config, force_refresh=False: (
+            side_effect=lambda config, force_refresh=False, interactive=True: (
                 "fresh" if force_refresh else "cached"
             ),
         )
@@ -54,6 +54,14 @@ class CallTestCase(TestCase):
         self.assertEqual(call(CONFIG, self.endpoint), ["ok"])
         self.assertEqual(self.sync_detailed.call_count, 2)
         self.assertEqual(self.token_of(self.sync_detailed.call_args), "fresh")
+
+    def test_not_interactive_is_passed_to_both_token_lookups(self):
+        self.sync_detailed.side_effect = [response(401), response(200, parsed=["ok"])]
+
+        call(CONFIG, self.endpoint, interactive=False)
+        for token_call in self.access_token.call_args_list:
+            self.assertIs(token_call.kwargs["interactive"], False)
+        self.assertNotIn("interactive", self.sync_detailed.call_args.kwargs)
 
     def test_error_with_detail(self):
         self.sync_detailed.return_value = response(404, b'{"detail": "Not found"}')

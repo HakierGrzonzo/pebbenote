@@ -25,20 +25,25 @@ def _detail(content: bytes):
     return payload.get("detail") if isinstance(payload, dict) else payload
 
 
-def call(config: Config, endpoint, **kwargs):
+def call(config: Config, endpoint, *, interactive=True, **kwargs):
     """
     Call a generated endpoint module, retrying once with a fresh token on 401.
 
     A 409 raises ConflictError with the current state of what was edited.
+    `interactive=False` raises CliError instead of starting a login.
     """
     name = endpoint.__name__.rsplit(".", 1)[-1]
     try:
         response = endpoint.sync_detailed(
-            client=_client(config, access_token(config)), **kwargs
+            client=_client(config, access_token(config, interactive=interactive)),
+            **kwargs,
         )
         if response.status_code == 401:
             response = endpoint.sync_detailed(
-                client=_client(config, access_token(config, force_refresh=True)),
+                client=_client(
+                    config,
+                    access_token(config, force_refresh=True, interactive=interactive),
+                ),
                 **kwargs,
             )
     except httpx.TransportError as e:

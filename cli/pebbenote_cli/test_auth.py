@@ -152,6 +152,32 @@ class AccessTokenTestCase(AuthTestCase):
             self.forms()[1], {"client_id": auth.CLIENT_ID, "scope": auth.SCOPE}
         )
 
+    def test_not_interactive_without_tokens_does_not_log_in(self):
+        with self.assertRaisesRegex(CliError, "Not logged in"):
+            auth.access_token(CONFIG, interactive=False)
+        self.request.assert_not_called()
+
+    def test_not_interactive_without_refresh_token_does_not_log_in(self):
+        self.store(expires_at=NOW - 1, refresh_token=None)
+
+        with self.assertRaisesRegex(CliError, "Not logged in"):
+            auth.access_token(CONFIG, interactive=False)
+        self.request.assert_not_called()
+
+    def test_not_interactive_rejected_refresh_does_not_log_in(self):
+        self.store(expires_at=NOW - 1)
+        self.request.return_value = (400, {"error": "invalid_grant"})
+
+        with self.assertRaisesRegex(CliError, "Not logged in"):
+            auth.access_token(CONFIG, interactive=False)
+        self.assertEqual(self.request.call_count, 1)
+
+    def test_not_interactive_refreshes(self):
+        self.store(expires_at=NOW - 1)
+        self.request.return_value = (200, token_response())
+
+        self.assertEqual(auth.access_token(CONFIG, interactive=False), "new-access")
+
 
 class LoginTestCase(AuthTestCase):
     def test_pending_then_success(self):
