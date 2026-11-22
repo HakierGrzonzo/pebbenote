@@ -53,13 +53,26 @@ class OllamaTelemetryTestCase(IsolatedAsyncioTestCase):
                 "gen_ai.operation.name": "chat",
                 "gen_ai.provider.name": "ollama",
                 "gen_ai.request.model": self.adapter.model,
-                "gen_ai.request.temperature": 0,
+                "gen_ai.request.temperature": self.adapter.temperature,
                 "gen_ai.response.model": "test-model",
                 "gen_ai.usage.input_tokens": 12,
                 "gen_ai.usage.output_tokens": 34,
                 "pebbenote.llm.task": "note",
             },
         )
+
+    async def test_completion_uses_configured_temperature(self):
+        self.adapter.temperature = 0.7
+        self.adapter._ollama.chat.return_value = chat_response(
+            '{"items": [{"text": "milk"}]}'
+        )
+
+        await self.adapter.get_completion(self.chat)
+
+        options = self.adapter._ollama.chat.call_args.kwargs["options"]
+        self.assertEqual(options["temperature"], 0.7)
+        [span] = self.exporter.get_finished_spans()
+        self.assertEqual(span.attributes["gen_ai.request.temperature"], 0.7)
 
     async def test_invalid_answer_marks_span_as_error(self):
         self.adapter._ollama.chat.return_value = chat_response("not json")

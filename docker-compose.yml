@@ -82,6 +82,7 @@ services:
       OLLAMA_HOST: "localhost"
       CHAT_MODEL: ${CHAT_MODEL:-gemma4:e2b}
       DECISION_MODEL: ${DECISION_MODEL:-nimble}
+      CHAT_TEMPERATURE: ${CHAT_TEMPERATURE:-0}
       OIDC_ISSUER: "http://localhost:8080/realms/pebbenote"
       OIDC_AUDIENCE: "pebbenote-be"
       REDIS_URL: "redis://localhost:6379"
@@ -115,6 +116,7 @@ services:
       OLLAMA_HOST: "localhost"
       CHAT_MODEL: ${CHAT_MODEL:-gemma4:e2b}
       DECISION_MODEL: ${DECISION_MODEL:-nimble}
+      CHAT_TEMPERATURE: ${CHAT_TEMPERATURE:-0}
       OIDC_ISSUER: "http://localhost:8080/realms/pebbenote"
       OIDC_AUDIENCE: "pebbenote-be"
       REDIS_URL: "redis://localhost:6379"

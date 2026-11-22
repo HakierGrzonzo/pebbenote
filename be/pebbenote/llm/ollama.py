@@ -21,6 +21,7 @@ logger = getLogger(__name__)
 
 class OllamaAdapter(AIAdapter):
     model = settings.CHAT_MODEL
+    temperature = settings.CHAT_TEMPERATURE
 
     def __init__(self) -> None:
         self._ollama = AsyncClient()
@@ -30,12 +31,12 @@ class OllamaAdapter(AIAdapter):
             *self.map_messages(chat.messages),
         ]
         logger.info("Starting chat")
-        with llm_call(self.model, "note", temperature=0) as call:
+        with llm_call(self.model, "note", temperature=self.temperature) as call:
             response: ChatResponse = await self._ollama.chat(
                 model=self.model,
                 messages=messages,
                 format=NoteList.model_json_schema(),
-                options={"temperature": 0},
+                options={"temperature": self.temperature},
             )
             call.record_response(
                 response.model, response.prompt_eval_count, response.eval_count
@@ -83,7 +84,9 @@ class OllamaAdapter(AIAdapter):
         return "instruction" if answer.choice == "instruction" else "note"
 
     async def rewrite_instruction(self, text: str) -> str:
-        with llm_call(self.model, "rewrite_instruction", temperature=0) as call:
+        with llm_call(
+            self.model, "rewrite_instruction", temperature=self.temperature
+        ) as call:
             response: ChatResponse = await self._ollama.chat(
                 model=self.model,
                 messages=[
@@ -91,7 +94,7 @@ class OllamaAdapter(AIAdapter):
                     {"role": "user", "content": text},
                 ],
                 format=InstructionRewrite.model_json_schema(),
-                options={"temperature": 0},
+                options={"temperature": self.temperature},
             )
             call.record_response(
                 response.model, response.prompt_eval_count, response.eval_count

@@ -17,6 +17,7 @@ class AppSettings(BaseSettings):
     AI_PROVIDER: AiProviderKinds = "Ollama"
     CHAT_MODEL: str = "gemma4:e2b"
     DECISION_MODEL: str = "nimble"
+    CHAT_TEMPERATURE: float = 0
 
     OIDC_ISSUER: str = "http://localhost:8080/realms/pebbenote"
     OIDC_AUDIENCE: str = "pebbenote-be"

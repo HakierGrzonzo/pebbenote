@@ -31,6 +31,9 @@ The models can be changed with the `CHAT_MODEL` (default `gemma4:e2b`) and
 `DECISION_MODEL` (default `nimble`) environment variables. Pull whichever
 models you configure.
 
+`CHAT_TEMPERATURE` (default `0`) sets the sampling temperature of the chat
+model; the decision model is not affected.
+
 Bring up the backend via the following command:
 
 ```bash

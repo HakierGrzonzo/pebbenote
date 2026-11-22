@@ -11,6 +11,7 @@ x-be-env: &be-env
   OLLAMA_HOST: ${OLLAMA_HOST:?}
   CHAT_MODEL: ${CHAT_MODEL:?}
   DECISION_MODEL: ${DECISION_MODEL:?}
+  CHAT_TEMPERATURE: ${CHAT_TEMPERATURE:-0}
   OIDC_ISSUER: ${OIDC_ISSUER:?}
   OIDC_JWKS_URL: ${OIDC_JWKS_URL:-http://keycloak:8080/realms/pebbenote/protocol/openid-connect/certs}
   OIDC_AUDIENCE: "pebbenote-be"
