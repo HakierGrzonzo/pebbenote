@@ -147,8 +147,11 @@ static void window_load(Window *window) {
   layer_add_child(window_layer, text_layer_get_layer(s_processing_layer));
 
 #if defined(PBL_TOUCH)
-  // The window owns the recognizer. Without the touch bridge the system
-  // doesn't map the swipe to a button, like Back for a swipe right.
+  // Apps get no touches at all until they opt in. The window then turns off
+  // the touch bridge, so the swipe reaches its own recognizer instead of being
+  // mapped to a button, like Back for a swipe right. The window owns the
+  // recognizer.
+  app_touch_navigation_enable(true);
   Recognizer *swipe =
       swipe_recognizer_create(s_swipe_handler, NULL, SwipeDirection_Left | SwipeDirection_Right);
   window_attach_recognizer(window, swipe);
