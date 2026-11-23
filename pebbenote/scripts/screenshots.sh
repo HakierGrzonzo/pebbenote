@@ -26,6 +26,7 @@ OUT="$APP_DIR/screenshots"
 WELCOME_NOTE='Welcome to Pebbenote!
 Select: dictate, AI tidies it into the note
 Up/Down: move highlight
+Hold Up/Down or swipe: switch notes
 Hold Select: delete highlighted line
 Say "always ..." to set a lasting rule
 Hold Select on these lines to clear them'
