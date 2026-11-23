@@ -89,6 +89,16 @@ function sendNote(
   return true;
 }
 
+// Like sendNote, but drops a note the watch switched away from meanwhile
+function sendIfShown(
+  note: NoteModel,
+  extra: Record<string, number> = {},
+  force = false,
+): boolean {
+  if (shown.noteId && note.note_id !== shown.noteId) return false;
+  return sendNote(note, extra, force);
+}
+
 function isPending(note: NoteViewModel) {
   // Not just the latest action: applying the instructions adds a done one
   // while dictated ones can still be queued
@@ -162,13 +172,15 @@ async function pollNote(noteId: string, lastModified?: string) {
       }
     }
     if (note === null) continue;
+    // Switched while the request was running
+    if (shown.noteId && shown.noteId !== noteId) return;
     // Changed: from now on only newer changes are news
     lastModified = note.last_modified;
 
     if (isPending(note)) {
       // An earlier action or something else changed the note
       if (note.version > shown.version) deadline = Date.now() + POLL_TIMEOUT_MS;
-      sendNote(note, { Processing: 1 });
+      sendIfShown(note, { Processing: 1 });
       continue;
     }
 
@@ -178,7 +190,7 @@ async function pollNote(noteId: string, lastModified?: string) {
       const done = { Vibe: 1, Processing: 0 };
       // A delete may have sent this version or a newer one already, the
       // banner has to go all the same. The watch takes keys only with a note.
-      if (!sendNote(note, done, true)) {
+      if (!sendIfShown(note, done, true)) {
         PebbleTS.sendAppMessage({ ...encodeNote(shown.content), ...done });
       }
     }
@@ -212,7 +224,7 @@ async function applyDictation(noteId: string, dictation: string) {
     pollWhilePending(response.action.note_id, response.note_last_modified);
     return;
   }
-  sendNote(response, { Vibe: 1, Processing: 0 }, true);
+  sendIfShown(response, { Vibe: 1, Processing: 0 }, true);
 }
 
 // Dictations are sent one after another, so the backend queues them in the
@@ -243,7 +255,7 @@ async function deleteNoteLines(indexes: number[]) {
         const updated = await notes.editNoteById(base.noteId, edit);
         // The watch drops notes while deletes are queued, maybe the poller's
         // last one: this one has to say whether actions are still running
-        sendNote(
+        sendIfShown(
           updated,
           { Processing: polling === base.noteId ? 1 : 0 },
           true,
