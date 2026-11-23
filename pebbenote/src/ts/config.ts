@@ -31,6 +31,8 @@ export type ConfigNote = {
 export type ConfigResult = {
   backendUrl: string;
   newNotes: string[];
+  // existing notes to delete
+  deletedIds: string[];
   // an existing note id, "new:<index>" for a pending note, or null for no change
   defaultId: string | null;
 };
@@ -59,6 +61,10 @@ function buildConfigPage(
   input[type=url], input[type=text] { width: 100%; box-sizing: border-box; padding: 8px; font-size: 16px; background: #444; color: #fff; border: 1px solid #666; }
   button { margin-top: 12px; padding: 10px 16px; font-size: 16px; }
   label { display: block; padding: 6px 0; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .row label { flex: 1; }
+  .row button { margin-top: 0; padding: 4px 10px; font-size: 14px; }
+  .deleted label { text-decoration: line-through; color: #999; }
 </style>
 </head>
 <body>
@@ -86,6 +92,7 @@ function buildConfigPage(
     box.appendChild(document.createTextNode(" - then close this page; the watch signs in automatically."));
   }
   var pending = [];
+  var deleted = [];
   var defaultId = null;
   var initialDefault = null;
   (notes || []).forEach(function (n) { if (n.is_default) { defaultId = initialDefault = n.note_id; } });
@@ -104,21 +111,42 @@ function buildConfigPage(
     var rows = notes.map(function (n) { return { id: n.note_id, text: label(n.content, "") }; })
       .concat(pending.map(function (t, i) { return { id: "new:" + i, text: label(t, " (new)") }; }));
     rows.forEach(function (r) {
+      var isDeleted = deleted.indexOf(r.id) >= 0;
+      var row = document.createElement("div");
+      row.className = isDeleted ? "row deleted" : "row";
       var l = document.createElement("label");
       var radio = document.createElement("input");
       radio.type = "radio";
       radio.name = "default";
       radio.checked = r.id === defaultId;
-      radio.onchange = function () { defaultId = r.id; };
+      radio.disabled = isDeleted;
+      radio.onchange = function () { defaultId = r.id; render(); };
       l.appendChild(radio);
       l.appendChild(document.createTextNode(" " + r.text + (r.id === defaultId ? " - default" : "")));
-      box.appendChild(l);
+      row.appendChild(l);
+      if (r.id.indexOf("new:") !== 0) {
+        var del = document.createElement("button");
+        del.textContent = isDeleted ? "Undo" : "Delete";
+        del.onclick = function () {
+          if (isDeleted) {
+            deleted.splice(deleted.indexOf(r.id), 1);
+          } else {
+            deleted.push(r.id);
+            // The backend picks the next default when the default is deleted
+            if (defaultId === r.id) defaultId = null;
+          }
+          render();
+        };
+        row.appendChild(del);
+      }
+      box.appendChild(row);
     });
   }
   function done(url) {
     var result = {
       backendUrl: url,
       newNotes: pending,
+      deletedIds: deleted,
       defaultId: defaultId !== initialDefault ? defaultId : null
     };
     location.href = returnTo + encodeURIComponent(JSON.stringify(result));

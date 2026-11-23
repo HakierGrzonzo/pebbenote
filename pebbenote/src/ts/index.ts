@@ -11,6 +11,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const keys = require("message_keys") as Record<string, number>;
 
+import { applyNoteChanges } from "./noteChanges";
 import { NoteSync } from "./noteSync";
 import {
   ConfigNote,
@@ -95,22 +96,6 @@ async function beginSignIn(): Promise<string | null> {
   }
 }
 
-async function applyNoteChanges({ newNotes, defaultId }: ConfigResult) {
-  const notes = makeClient().notes;
-  try {
-    const createdIds: string[] = [];
-    for (const content of newNotes ?? []) {
-      createdIds.push((await notes.createNote(content)).note_id);
-    }
-    const target = defaultId?.startsWith("new:")
-      ? createdIds[Number(defaultId.slice(4))]
-      : defaultId;
-    if (target) await notes.setDefaultNote(target);
-  } catch (e) {
-    console.error("Failed to apply note changes", String(e));
-  }
-}
-
 // pkts typings omit the config-page close event
 type WebViewClosedEvent = { type: "webviewclosed"; response?: string };
 
@@ -129,7 +114,11 @@ type WebViewClosedEvent = { type: "webviewclosed"; response?: string };
       return;
     }
     setBaseUrl(backendUrl || "");
-    await applyNoteChanges(result);
+    try {
+      await applyNoteChanges(makeClient().notes, result);
+    } catch (err) {
+      console.error("Failed to apply note changes", String(err));
+    }
   } catch (err) {
     console.error("Bad config response", String(err));
     return;
