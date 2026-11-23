@@ -124,18 +124,20 @@ const POLL_TIMEOUT_MS = 3 * 60 * 1000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-let polling = false;
+// The note being polled, "" when none is
+let polling = "";
 
 // Polls the note in the background until the backend worker is done with all
 // of its actions, forwarding every change to the watch. One poller serves any
-// number of queued actions.
+// number of queued actions. After a switch the poller of the old note stops
+// on its next tick, the new note gets its own meanwhile.
 async function pollWhilePending(noteId: string, lastModified?: string) {
-  if (polling) return;
-  polling = true;
+  if (polling === noteId) return;
+  polling = noteId;
   try {
     await pollNote(noteId, lastModified);
   } finally {
-    polling = false;
+    if (polling === noteId) polling = "";
   }
 }
 
@@ -191,9 +193,9 @@ function isAccepted(
   return "note_last_modified" in response;
 }
 
-async function applyDictation(dictation: string) {
+async function applyDictation(noteId: string, dictation: string) {
   const actionPayload: ActionEditModel = {
-    note_id: "default",
+    note_id: noteId,
     action: dictation,
   };
   let response;
@@ -218,7 +220,9 @@ async function applyDictation(dictation: string) {
 let dictations: Promise<void> = Promise.resolve();
 
 function queueDictation(dictation: string) {
-  dictations = dictations.then(() => applyDictation(dictation));
+  // The note it was spoken on, the watch may switch notes before it is sent
+  const noteId = shown.noteId || "default";
+  dictations = dictations.then(() => applyDictation(noteId, dictation));
 }
 
 // How often a delete is redone on a note that was changed in the meantime
@@ -239,7 +243,11 @@ async function deleteNoteLines(indexes: number[]) {
         const updated = await notes.editNoteById(base.noteId, edit);
         // The watch drops notes while deletes are queued, maybe the poller's
         // last one: this one has to say whether actions are still running
-        sendNote(updated, { Processing: polling ? 1 : 0 }, true);
+        sendNote(
+          updated,
+          { Processing: polling === base.noteId ? 1 : 0 },
+          true,
+        );
         return;
       } catch (e) {
         const conflict = e instanceof ApiError && e.status === 409;
@@ -257,6 +265,27 @@ async function deleteNoteLines(indexes: number[]) {
     console.error("Failed to delete line", String(e));
     sendFailure(e);
   }
+}
+
+// Makes the note step places after the shown one the default and shows it,
+// wrapping around the list
+async function switchNote(step: number) {
+  try {
+    const notes = await makeClient().notes.listNotes();
+    let index = notes.findIndex((n) => n.note_id === shown.noteId);
+    if (index < 0) index = notes.findIndex((n) => n.is_default);
+    const count = notes.length;
+    const target = notes[(((index + step) % count) + count) % count];
+    if (count > 1 && target) {
+      await makeClient().notes.setDefaultNote(target.note_id);
+    }
+  } catch (e) {
+    console.error("Failed to switch notes", String(e));
+    sendFailure(e);
+    return;
+  }
+  // Also with a single note: the watch waits for one
+  await refreshNote();
 }
 
 Pebble.addEventListener("showConfiguration", async () => {
@@ -347,6 +376,11 @@ Pebble.addEventListener("ready", async () => {
       await deleteNoteLines(
         Array.isArray(deleteLine) ? deleteLine : [deleteLine],
       );
+      return;
+    }
+    const switchStep: number | undefined = payload["SwitchNote"];
+    if (switchStep !== undefined) {
+      await switchNote(switchStep);
       return;
     }
     const dictation: string | undefined = payload["Dictation"];

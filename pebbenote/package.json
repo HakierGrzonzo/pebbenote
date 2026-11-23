@@ -31,7 +31,8 @@
       "NumberOfLines",
       "SignInRequired",
       "Status",
-      "Processing"
+      "Processing",
+      "SwitchNote"
     ],
     "resources": {
       "media": [
