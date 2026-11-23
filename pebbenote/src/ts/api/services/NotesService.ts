@@ -90,6 +90,24 @@ export class NotesService {
     });
   }
   /**
+   * Delete Note
+   * @param noteId
+   * @returns void
+   * @throws ApiError
+   */
+  public deleteNote(noteId: string): CancelablePromise<void> {
+    return this.httpRequest.request({
+      method: "DELETE",
+      url: "/note/{note_id}",
+      path: {
+        note_id: noteId,
+      },
+      errors: {
+        422: `Validation Error`,
+      },
+    });
+  }
+  /**
    * Set Default Note
    * @param noteId
    * @returns NoteModel Successful Response

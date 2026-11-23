@@ -7,7 +7,12 @@ from uuid import UUID
 from . import cli
 from .client.api.actions import apply_action
 from .client.api.instructions import list_instructions, replace_instructions
-from .client.api.notes import edit_note_by_id, get_note_by_id, list_notes
+from .client.api.notes import (
+    delete_note,
+    edit_note_by_id,
+    get_note_by_id,
+    list_notes,
+)
 from .client.models import (
     ActionAcceptedModel,
     ActionEditModel,
@@ -378,6 +383,50 @@ class MainTestCase(TestCase):
         self.assertEqual(
             cli.complete_note_ids(prefix=""), {"default": "the default note"}
         )
+
+    def run_delete(self, *argv, answer=None, stdin_tty=True):
+        self.call.return_value = NOTE
+        stdin = mock.Mock(isatty=lambda: stdin_tty)
+        with (
+            mock.patch("sys.stdin", stdin),
+            mock.patch("builtins.input", return_value=answer) as prompt,
+        ):
+            _, stderr = self.run_cli("delete", *argv)
+        return prompt, stderr
+
+    def test_delete_confirmed(self):
+        prompt, stderr = self.run_delete("abc", answer="y")
+
+        prompt.assert_called_once_with('Delete note "Shopping"? [y/N] ')
+        self.call.assert_any_call(CONFIG, get_note_by_id, note_id="abc")
+        # The note that was read, not the id it was asked by
+        self.call.assert_called_with(CONFIG, delete_note, note_id=NOTE_ID)
+        self.assertIn("Note deleted", stderr)
+
+    def test_delete_defaults_to_default_note(self):
+        self.run_delete(answer="yes")
+
+        self.call.assert_any_call(CONFIG, get_note_by_id, note_id="default")
+        self.call.assert_called_with(CONFIG, delete_note, note_id=NOTE_ID)
+
+    def test_delete_declined(self):
+        _, stderr = self.run_delete("abc", answer="")
+
+        self.assertEqual(self.call.call_count, 1)
+        self.assertIn("Not deleted", stderr)
+
+    def test_delete_yes_does_not_ask(self):
+        prompt, _ = self.run_delete("abc", "--yes", stdin_tty=False)
+
+        prompt.assert_not_called()
+        self.call.assert_called_with(CONFIG, delete_note, note_id=NOTE_ID)
+
+    def test_delete_without_tty_needs_yes(self):
+        with self.assertRaises(SystemExit) as ctx:
+            self.run_delete("abc", stdin_tty=False)
+
+        self.assertIn("--yes", ctx.exception.code)
+        self.assertEqual(self.call.call_count, 1)
 
     def test_cli_error_exits_with_message(self):
         self.call.side_effect = CliError("boom")

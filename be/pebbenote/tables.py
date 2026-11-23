@@ -55,6 +55,10 @@ class Note(Base):
 
     is_default = mapped_column(Boolean, nullable=False, server_default=false())
 
+    # Set when the user deletes the note, which then is gone for every query.
+    # Its revisions and actions are kept.
+    deleted_at = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+
     __table_args__ = (
         # At most one default note per owner
         Index(

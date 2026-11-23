@@ -96,3 +96,11 @@ async def set_default_note(
     note_id: UUID,
 ) -> NoteModel:
     return await repository.set_default_note(note_id)
+
+
+@note_router.delete("/{note_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_note(
+    repository: Annotated[NoteRepository, Depends()],
+    note_id: UUID,
+) -> None:
+    await repository.delete_note(note_id)
