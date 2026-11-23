@@ -46,6 +46,14 @@ static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
   scroll_to_selected_note();
 }
 
+static void down_long_click_handler(ClickRecognizerRef recognizer, void *context) {
+  comm_switch_note(1);
+}
+
+static void up_long_click_handler(ClickRecognizerRef recognizer, void *context) {
+  comm_switch_note(-1);
+}
+
 static void back_click_handler(ClickRecognizerRef recognizer, void *context) {
   // A second press skips waiting for the phone
   if (comm_is_exiting()) {
@@ -59,6 +67,26 @@ void input_click_config_provider(void *context) {
   window_single_click_subscribe(BUTTON_ID_BACK, back_click_handler);
   window_single_click_subscribe(BUTTON_ID_SELECT, select_click_handler);
   window_long_click_subscribe(BUTTON_ID_SELECT, 500, select_long_click_handler, NULL);
-  window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 300, down_click_handler);
-  window_single_repeating_click_subscribe(BUTTON_ID_UP, 300, up_click_handler);
+  // Holding switches notes, so Up/Down can't repeat on hold
+  window_single_click_subscribe(BUTTON_ID_DOWN, down_click_handler);
+  window_single_click_subscribe(BUTTON_ID_UP, up_click_handler);
+  window_long_click_subscribe(BUTTON_ID_DOWN, 500, down_long_click_handler, NULL);
+  window_long_click_subscribe(BUTTON_ID_UP, 500, up_long_click_handler, NULL);
+}
+
+void input_swipe_handler(const Recognizer *recognizer, RecognizerEvent event) {
+  if (event != RecognizerEvent_Completed) {
+    return;
+  }
+  // The next note comes in from the right, like turning a page
+  switch (swipe_recognizer_get_direction(recognizer)) {
+  case SwipeDirection_Left:
+    comm_switch_note(1);
+    break;
+  case SwipeDirection_Right:
+    comm_switch_note(-1);
+    break;
+  default:
+    break;
+  }
 }

@@ -99,6 +99,50 @@ static void send_pending_deletes(void *context) {
 
 bool comm_is_exiting(void) { return s_exit_requested; }
 
+// A switch waiting for the delete batch to leave the outbox, 0 when none is
+static int8_t s_pending_switch;
+
+static void send_switch_note(int8_t step) {
+  DictionaryIterator *out_iter;
+  if (app_message_outbox_begin(&out_iter) != APP_MSG_OK) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to app_message_outbox_begin");
+    display_text("Failed to reach phone");
+    return;
+  }
+  int32_t value = step;
+  dict_write_int(out_iter, MESSAGE_KEY_SwitchNote, &value, sizeof(value), true);
+  dict_write_end(out_iter);
+  if (app_message_outbox_send() != APP_MSG_OK) {
+    APP_LOG(APP_LOG_LEVEL_ERROR, "Failed to send the switch message");
+    display_text("Failed to reach phone");
+  }
+}
+
+void comm_switch_note(int8_t step) {
+  if (s_sign_in_required || s_exit_requested) {
+    return;
+  }
+  // The phone shows the new note from the top
+  selectedNote = 0;
+  save_selected_note();
+  display_text("Switching...");
+
+  if (s_pending_count == 0) {
+    send_switch_note(step);
+    return;
+  }
+  // AppMessage sends one message at a time, the switch goes once the batch is out
+  s_pending_switch = step;
+  if (s_delete_timer != NULL) {
+    app_timer_cancel(s_delete_timer);
+  }
+  send_pending_deletes(NULL);
+  if (!s_delete_in_flight) {
+    // The batch didn't go, so the switch won't either
+    s_pending_switch = 0;
+  }
+}
+
 void comm_flush_and_exit(void) {
   if (s_pending_count == 0 && !s_delete_in_flight) {
     window_stack_pop_all(true);
@@ -240,9 +284,18 @@ static void inbox_dropped_handler(AppMessageResult reason, void *context) {
   APP_LOG(APP_LOG_LEVEL_ERROR, "Inbox message dropped: %d", (int)reason);
 }
 
+static void outbox_sent_handler(DictionaryIterator *iter, void *context) {
+  if (s_pending_switch != 0) {
+    int8_t step = s_pending_switch;
+    s_pending_switch = 0;
+    send_switch_note(step);
+  }
+}
+
 static void outbox_failed_handler(DictionaryIterator *iter, AppMessageResult reason,
                                   void *context) {
   APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox message failed: %d", (int)reason);
+  s_pending_switch = 0;
   display_text("Failed to reach phone");
   s_delete_in_flight = false;
   finish_exit_if_requested();
@@ -277,6 +330,7 @@ void comm_init(void) {
   app_message_open(inbox_size, outbox_size);
   app_message_register_inbox_received(inbox_received_handler);
   app_message_register_inbox_dropped(inbox_dropped_handler);
+  app_message_register_outbox_sent(outbox_sent_handler);
   app_message_register_outbox_failed(outbox_failed_handler);
 
   // Create new dictation session

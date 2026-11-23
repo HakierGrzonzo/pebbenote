@@ -2,8 +2,9 @@
 
 #include <pebble.h>
 
-// Creates the main window and pushes it. click_config is installed on it.
-void ui_init(ClickConfigProvider click_config);
+// Creates the main window and pushes it. click_config is installed on it,
+// swipe_handler gets its left and right swipes.
+void ui_init(ClickConfigProvider click_config, RecognizerEventCb swipe_handler);
 void ui_deinit(void);
 
 // Shows a centered status/dictation string in place of the note

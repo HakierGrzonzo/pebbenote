@@ -6,7 +6,7 @@
 
 static void init() {
   comm_init();
-  ui_init(input_click_config_provider);
+  ui_init(input_click_config_provider, input_swipe_handler);
 }
 
 static void deinit() {
