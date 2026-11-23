@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import Select, desc, update
+from sqlalchemy import Select, desc, func, update
 from sqlalchemy.dialects.postgresql import insert
 
 from pebbenote.auth import CurrentUser
@@ -59,7 +59,20 @@ class NoteRepository:
         )
 
     async def list_notes(self) -> list[NoteModel]:
-        query = self._select_notes()
+        """The user's notes, oldest first: by when their first revision was made"""
+        created = (
+            Select(
+                NoteRevision.note_id.label("note_id"),
+                func.min(NoteRevision.created_at).label("created_at"),
+            )
+            .group_by(NoteRevision.note_id)
+            .cte("note_created")
+        )
+        query = (
+            self._select_notes()
+            .join(created, created.c.note_id == Note.note_id)
+            .order_by(created.c.created_at, Note.note_id)
+        )
 
         results = await self.session.execute(query)
 
