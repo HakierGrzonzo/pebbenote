@@ -101,6 +101,8 @@ bool comm_is_exiting(void) { return s_exit_requested; }
 
 // A switch waiting for the delete batch to leave the outbox, 0 when none is
 static int8_t s_pending_switch;
+// A switch was asked for and its note hasn't arrived yet
+static bool s_switching;
 
 static void send_switch_note(int8_t step) {
   DictionaryIterator *out_iter;
@@ -122,9 +124,11 @@ void comm_switch_note(int8_t step) {
   if (s_sign_in_required || s_exit_requested) {
     return;
   }
-  // The phone shows the new note from the top
-  selectedNote = 0;
+  // Coming from below starts at the top of the next note, coming from above
+  // at the bottom of the previous one. The new note clamps the selection.
+  selectedNote = step > 0 ? 0 : MAX_MESSAGES - 1;
   save_selected_note();
+  s_switching = true;
   display_text("Switching...");
 
   if (s_pending_count == 0) {
@@ -260,7 +264,13 @@ static void handle_inbox(DictionaryIterator *iter) {
   selectedNote = numberOfMessages == 0 ? 0 : min(numberOfMessages - 1, selectedNote);
 
   save_notes();
-  display_notes();
+  if (s_switching && numberOfMessages > 0) {
+    // The scroll offset is still the one of the old note
+    scroll_to_selected_note();
+  } else {
+    display_notes();
+  }
+  s_switching = false;
   if (processing_tuple) {
     ui_set_processing(processing);
   }
