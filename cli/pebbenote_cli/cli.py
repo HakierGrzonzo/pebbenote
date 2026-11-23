@@ -12,7 +12,12 @@ from pebbenote_cli.client.api.instructions import (
     list_instructions,
     replace_instructions,
 )
-from pebbenote_cli.client.api.notes import edit_note_by_id, get_note_by_id, list_notes
+from pebbenote_cli.client.api.notes import (
+    delete_note,
+    edit_note_by_id,
+    get_note_by_id,
+    list_notes,
+)
 from pebbenote_cli.client.models import (
     ActionAcceptedModel,
     ActionEditModel,
@@ -83,11 +88,28 @@ def cmd_edit(config, args):
     print("Note synced.", file=sys.stderr)
 
 
+def first_line(note):
+    return note.content.splitlines()[0] if note.content else ""
+
+
+def cmd_delete(config, args):
+    note = api.call(config, get_note_by_id, note_id=args.note_id)
+    if not args.yes:
+        if not sys.stdin.isatty():
+            raise CliError("Not deleting without a terminal to confirm; pass --yes")
+        answer = input(f'Delete note "{first_line(note)}"? [y/N] ')
+        if answer.strip().lower() not in ("y", "yes"):
+            print("Not deleted.", file=sys.stderr)
+            return
+    # The note that was read: "default" may point at another one by now
+    api.call(config, delete_note, note_id=note.note_id)
+    print("Note deleted.", file=sys.stderr)
+
+
 def cmd_list(config, _args):
     for note in api.call(config, list_notes):
         marker = "*" if note.is_default else " "
-        first_line = note.content.splitlines()[0] if note.content else ""
-        print(f"{marker} {note.note_id}  {first_line}")
+        print(f"{marker} {note.note_id}  {first_line(note)}")
 
 
 def cmd_instructions(config, args):
@@ -155,7 +177,7 @@ def complete_note_ids(**_kwargs):
         # Logged out, offline or a broken config: complete what we know
         return ids
     for note in notes:
-        ids[str(note.note_id)] = note.content.splitlines()[0] if note.content else ""
+        ids[str(note.note_id)] = first_line(note)
     return ids
 
 
@@ -181,6 +203,14 @@ def main():
     edit.set_defaults(func=cmd_edit)
 
     sub.add_parser("list", help="list notes").set_defaults(func=cmd_list)
+    delete = sub.add_parser("delete", help="delete a note")
+    delete.add_argument(
+        "note_id", nargs="?", default="default"
+    ).completer = complete_note_ids
+    delete.add_argument(
+        "-y", "--yes", action="store_true", help="do not ask for confirmation"
+    )
+    delete.set_defaults(func=cmd_delete)
     instructions = sub.add_parser(
         "instructions", help="edit the standing instructions, one per list item"
     )
