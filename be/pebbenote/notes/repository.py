@@ -7,7 +7,7 @@ from pebbenote.auth import CurrentUser
 from pebbenote.db import DbSession
 from pebbenote.versioning import claim_version, latest_revisions
 
-from ..tables import Note, NoteAction, NoteRevision
+from ..tables import ActionStatus, Note, NoteAction, NoteRevision, utc_now
 from .exceptions import NoteConflict, NoteDoesNotExist
 from .schemas import NoteEditModel, NoteModel, NoteRevisionModel, NoteUpdateModel
 from .types import NoteId
@@ -44,7 +44,7 @@ class NoteRepository:
             Select(Note, NoteRevision, latest.c.version)
             .join(latest, latest.c.parent_id == Note.note_id)
             .join(NoteRevision, NoteRevision.note_revision_id == latest.c.revision_id)
-            .where(Note.owner == self.user)
+            .where(Note.owner == self.user, Note.deleted_at.is_(None))
             # A job reads the note again after the LLM call, in one session
             .execution_options(populate_existing=True)
         )
@@ -205,6 +205,33 @@ class NoteRepository:
             await self.session.flush()
 
         return self.map_note(note, revision, version)
+
+    async def delete_note(self, note_id: UUID) -> None:
+        """
+        Hides the note from every query, its pending actions fail. When it was
+        the default the oldest remaining note takes over, without any left the
+        next read of "default" seeds a new one.
+        """
+        note, _, _ = await self._raw_get_note_by_id(note_id)
+        await self.lock_note(note.note_id)
+
+        was_default = note.is_default
+        note.deleted_at = utc_now()
+        note.is_default = False
+        await self.session.execute(
+            update(NoteAction)
+            .where(
+                NoteAction.note_id == note.note_id,
+                NoteAction.status == ActionStatus.pending,
+            )
+            .values(status=ActionStatus.failed, updated_at=utc_now())
+        )
+        await self.session.flush()
+
+        if was_default:
+            remaining = await self.list_notes()
+            if remaining:
+                await self.set_default_note(remaining[0].note_id)
 
     async def list_revisions(
         self, note_id: NoteId, limit: int

@@ -9,6 +9,7 @@ from pebbenote.actions.action_service import NoteActionService
 from pebbenote.auth import get_current_user
 from pebbenote.config import settings
 from pebbenote.db import get_db
+from pebbenote.notes.exceptions import NoteDoesNotExist
 from pebbenote.notes.schemas import NoteModel
 from pebbenote.versioning import VersionConflict
 from pebbenote.worker import broker
@@ -51,6 +52,11 @@ async def apply_action_task(
     note = None
     try:
         note, next_action = await service.apply_action(UUID(action_id))
+    except NoteDoesNotExist:
+        # Deleted meanwhile, which failed its pending actions
+        await session.rollback()
+        logger.info("The note of action %s was deleted", action_id)
+        return None
     except VersionConflict:
         await session.rollback()
         if reruns < settings.ACTION_MAX_RERUNS:
@@ -96,6 +102,10 @@ async def apply_instructions_task(
     """
     try:
         return await service.apply_instructions(UUID(note_id))
+    except NoteDoesNotExist:
+        await session.rollback()
+        logger.info("Note %s was deleted, not applying the instructions", note_id)
+        return None
     except VersionConflict:
         if reruns >= settings.ACTION_MAX_RERUNS:
             raise

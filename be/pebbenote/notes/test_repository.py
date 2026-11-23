@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from pebbenote.db import get_test_db
 from pebbenote.notes.schemas import NoteEditModel, NoteUpdateModel
 
-from ..tables import Note, NoteAction, NoteRevision
+from ..tables import ActionStatus, Note, NoteAction, NoteRevision
 from .exceptions import NoteConflict, NoteDoesNotExist
 from .repository import DEFAULT_NOTE_TEXT, NoteRepository
 
@@ -267,3 +267,73 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
 
         with self.assertRaises(NoteConflict):
             await self.repository.claim_version("default", 2)
+
+    async def test_delete_hides_note(self):
+        await self.repository.delete_note(uuid_gen["note", 0])
+
+        notes = await self.repository.list_notes()
+        self.assertNotIn(uuid_gen["note", 0], [n.note_id for n in notes])
+        self.assertEqual(len(notes), NUMBER_OF_NOTES - 1)
+        with self.assertRaises(NoteDoesNotExist):
+            await self.repository.get_note_by_id(uuid_gen["note", 0])
+        with self.assertRaises(NoteDoesNotExist):
+            await self.repository.set_default_note(uuid_gen["note", 0])
+        with self.assertRaises(NoteDoesNotExist):
+            await self.repository.delete_note(uuid_gen["note", 0])
+
+    async def test_delete_keeps_history(self):
+        await self.repository.delete_note(uuid_gen["note", 0])
+
+        note = await self.session.get_one(Note, uuid_gen["note", 0])
+        await self.session.refresh(note, ["revisions"])
+        self.assertIsNotNone(note.deleted_at)
+        self.assertEqual(len(note.revisions), 1)
+
+    async def test_delete_non_ours(self):
+        with self.assertRaises(NoteDoesNotExist):
+            await self.repository.delete_note(uuid_gen["note", NUMBER_OF_NOTES])
+
+    async def test_delete_default_promotes_oldest(self):
+        await self.repository.set_default_note(uuid_gen["note", 2])
+        oldest = (await self.repository.list_notes())[0]
+        self.assertNotEqual(oldest.note_id, uuid_gen["note", 2])
+
+        await self.repository.delete_note(uuid_gen["note", 2])
+
+        default = await self.repository.get_note_by_id("default")
+        self.assertEqual(default.note_id, oldest.note_id)
+
+    async def test_delete_other_keeps_default(self):
+        await self.repository.set_default_note(uuid_gen["note", 2])
+
+        await self.repository.delete_note(uuid_gen["note", 0])
+
+        default = await self.repository.get_note_by_id("default")
+        self.assertEqual(default.note_id, uuid_gen["note", 2])
+
+    async def test_delete_last_note_seeds_new_default(self):
+        default = await self.repository.get_note_by_id("default")
+        for note in await self.repository.list_notes():
+            await self.repository.delete_note(note.note_id)
+
+        new = await self.repository.get_note_by_id("default")
+
+        self.assertNotEqual(new.note_id, default.note_id)
+        self.assertEqual(new.content, DEFAULT_NOTE_TEXT)
+
+    async def test_delete_fails_pending_actions(self):
+        pending = NoteAction(
+            note_id=uuid_gen["note", 0],
+            action_text="add milk",
+            status=ActionStatus.pending,
+        )
+        done = NoteAction(note_id=uuid_gen["note", 0], action_text="add eggs")
+        self.session.add_all([pending, done])
+        await self.session.flush()
+
+        await self.repository.delete_note(uuid_gen["note", 0])
+
+        await self.session.refresh(pending)
+        await self.session.refresh(done)
+        self.assertEqual(pending.status, ActionStatus.failed)
+        self.assertEqual(done.status, ActionStatus.done)
