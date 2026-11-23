@@ -56,6 +56,7 @@
     "openapi-typescript-codegen": "^0.29.0",
     "pkts": "^0.2.1",
     "prettier": "^3.6.2",
+    "tsx": "^4.23.15",
     "typescript-eslint": "^8.46.0"
   },
   "scripts": {
@@ -66,7 +67,8 @@
     "lint": "eslint src/ts scripts",
     "openapi": "openapi --input http://localhost:8000/openapi.json --output src/ts/api --client xhr --name AppClient --request ./request-template.ts && npm run format",
     "build:prod": "node scripts/use-env.mjs prod && pebble build",
-    "build:dev": "node scripts/use-env.mjs dev && pebble build"
+    "build:dev": "node scripts/use-env.mjs dev && pebble build",
+    "test": "tsx --test 'src/ts/**/*.test.ts'"
   },
   "overrides": {
     "@rollup/plugin-terser": "^1.0.2",
