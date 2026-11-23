@@ -12,7 +12,6 @@ static StatusBarLayer *s_status_bar;
 static TextLayer *s_processing_layer;
 static char s_last_text[512];
 static GRect s_bounds;
-static RecognizerEventCb s_swipe_handler;
 
 static void set_longer_text_hidden(bool hide) {
   for (int i = 0; i < MAX_MESSAGES; i++) {
@@ -146,18 +145,6 @@ static void window_load(Window *window) {
   layer_set_hidden(text_layer_get_layer(s_processing_layer), true);
   layer_add_child(window_layer, text_layer_get_layer(s_processing_layer));
 
-#if defined(PBL_TOUCH)
-  // Apps get no touches at all until they opt in. The window then turns off
-  // the touch bridge, so the swipe reaches its own recognizer instead of being
-  // mapped to a button, like Back for a swipe right. The window owns the
-  // recognizer.
-  app_touch_navigation_enable(true);
-  Recognizer *swipe =
-      swipe_recognizer_create(s_swipe_handler, NULL, SwipeDirection_Left | SwipeDirection_Right);
-  window_attach_recognizer(window, swipe);
-  window_set_touch_bridge_disabled(window, true);
-#endif
-
   // Show the cached note right away, the phone will replace it once it's ready
   if (load_notes()) {
     display_notes();
@@ -181,8 +168,7 @@ static void window_unload(Window *window) {
   status_bar_layer_destroy(s_status_bar);
 }
 
-void ui_init(ClickConfigProvider click_config, RecognizerEventCb swipe_handler) {
-  s_swipe_handler = swipe_handler;
+void ui_init(ClickConfigProvider click_config) {
   s_main_window = window_create();
   window_set_click_config_provider(s_main_window, click_config);
   window_set_window_handlers(s_main_window, (WindowHandlers){

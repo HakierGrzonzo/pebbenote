@@ -67,20 +67,3 @@ void input_click_config_provider(void *context) {
   window_single_repeating_click_subscribe(BUTTON_ID_DOWN, 300, down_click_handler);
   window_single_repeating_click_subscribe(BUTTON_ID_UP, 300, up_click_handler);
 }
-
-void input_swipe_handler(const Recognizer *recognizer, RecognizerEvent event) {
-  if (event != RecognizerEvent_Completed) {
-    return;
-  }
-  // The next note comes in from the right, like turning a page
-  switch (swipe_recognizer_get_direction(recognizer)) {
-  case SwipeDirection_Left:
-    comm_switch_note(1);
-    break;
-  case SwipeDirection_Right:
-    comm_switch_note(-1);
-    break;
-  default:
-    break;
-  }
-}

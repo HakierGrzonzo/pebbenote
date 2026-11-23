@@ -19,7 +19,7 @@ DEFAULT_NOTE_TEXT = "\n".join(
         "Welcome to Pebbenote!",
         "Select: dictate, AI tidies it into the note",
         "Up/Down: move highlight",
-        "Up/Down past the end or swipe: switch notes",
+        "Up/Down past the end: switch notes",
         "Hold Select: delete highlighted line",
         'Say "always ..." to set a lasting rule',
         "Hold Select on these lines to clear them",
