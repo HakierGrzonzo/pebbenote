@@ -104,8 +104,11 @@ def setup_telemetry() -> None:
             BatchLogRecordProcessor(OTLPLogExporter())
         )
         set_logger_provider(logger_provider)
-        # Existing loggers get exported too, with the ids of the current span
-        logging.getLogger().addHandler(LoggingHandler(logger_provider=logger_provider))
+        # Existing loggers get exported too, with the ids of the current span.
+        # Root gets the app's loggers; uvicorn's own don't propagate to it.
+        handler = LoggingHandler(logger_provider=logger_provider)
+        for name in ("", "uvicorn", "uvicorn.access"):
+            logging.getLogger(name).addHandler(handler)
 
     # On the driver, the SQLAlchemy instrumentation doesn't support 2.1 yet
     AsyncPGInstrumentor().instrument()
