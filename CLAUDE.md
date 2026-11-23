@@ -6,8 +6,8 @@ local auth helpers). See `README.md` for running the stack.
 
 ## Testing
 
-CI (`.github/workflows/ci.yml`) runs three jobs: pre-commit, backend tests and
-CLI tests. Run the same locally before pushing.
+CI (`.github/workflows/ci.yml`) runs four jobs: pre-commit, backend tests,
+CLI tests and watchapp JS tests. Run the same locally before pushing.
 
 ### Backend (`be/`)
 
@@ -38,6 +38,16 @@ cd cli && poetry run python -m unittest discover -v
 ```
 
 No services needed, HTTP and auth are mocked.
+
+### Watchapp JS (`pebbenote/`)
+
+```bash
+cd pebbenote && npm test
+```
+
+`node:test` run through `tsx`, tests are `src/ts/**/*.test.ts`. The phone side
+talks to the backend and the watch through injected functions, so tests use
+fakes instead of `Pebble`, `PebbleTS` and HTTP.
 
 ### Lint and format
 

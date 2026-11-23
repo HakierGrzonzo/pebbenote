@@ -28,22 +28,27 @@ static void select_long_click_handler(ClickRecognizerRef recognizer, void *conte
   }
 }
 
-static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
-  if (numberOfMessages == 0) {
+// Moves the highlight by step lines. Past the first or last line a fresh
+// press switches to the previous or next note, holding the button stops there.
+static void move_highlight(ClickRecognizerRef recognizer, int step) {
+  int target = selectedNote + step;
+  if (target < 0 || target >= numberOfMessages) {
+    if (!click_recognizer_is_repeating(recognizer)) {
+      comm_switch_note(step);
+    }
     return;
   }
-  selectedNote = (selectedNote + 1) % numberOfMessages;
+  selectedNote = target;
   save_selected_note();
   scroll_to_selected_note();
 }
 
+static void down_click_handler(ClickRecognizerRef recognizer, void *context) {
+  move_highlight(recognizer, 1);
+}
+
 static void up_click_handler(ClickRecognizerRef recognizer, void *context) {
-  if (numberOfMessages == 0) {
-    return;
-  }
-  selectedNote = (selectedNote + numberOfMessages - 1) % numberOfMessages;
-  save_selected_note();
-  scroll_to_selected_note();
+  move_highlight(recognizer, -1);
 }
 
 static void back_click_handler(ClickRecognizerRef recognizer, void *context) {

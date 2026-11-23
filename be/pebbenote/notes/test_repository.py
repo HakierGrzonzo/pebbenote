@@ -72,6 +72,18 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
 
         self.assertEqual(len(notes), NUMBER_OF_NOTES)
 
+    async def test_list_oldest_first(self):
+        created = [
+            (await self.repository.create_note(NoteEditModel(content=f"New {i}")))
+            for i in range(3)
+        ]
+        # Edits don't move a note
+        await self.edit(created[0].note_id, "Edited")
+
+        notes = await self.repository.list_notes()
+
+        self.assertEqual([n.note_id for n in notes[-3:]], [n.note_id for n in created])
+
     async def test_get_one(self):
         id_to_get = uuid_gen["note", 0]
         note = await self.repository.get_note_by_id(id_to_get)

@@ -1,14 +1,4 @@
-import {
-  ActionAcceptedModel,
-  ActionEditModel,
-  ActionModel,
-  ActionStatus,
-  ApiError,
-  AppClient,
-  NoteConflictModel,
-  NoteModel,
-  NoteViewModel,
-} from "./api";
+import { ApiError, AppClient } from "./api";
 import {
   NotSignedInError,
   getAccessToken,
@@ -21,7 +11,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const keys = require("message_keys") as Record<string, number>;
 
-import { deleteLines, rebaseDeletes } from "./lines";
+import { NoteSync } from "./noteSync";
 import {
   ConfigNote,
   ConfigResult,
@@ -64,200 +54,12 @@ function encodeNote(note: string) {
   return { ...message, NumberOfLines: points.length };
 }
 
-// The note the watch shows. Responses can arrive out of order, an older
-// version of the note must not replace a newer one.
-let shown = { noteId: "", version: 0, content: "" };
-
-// Sends the note unless the watch already has this version or a newer one.
-// With force the same version is sent again, for its extra keys. Says
-// whether it was sent.
-function sendNote(
-  note: NoteModel,
-  extra: Record<string, number> = {},
-  force = false,
-): boolean {
-  if (note.note_id === shown.noteId) {
-    if (note.version < shown.version) return false;
-    if (note.version === shown.version && !force) return false;
-  }
-  shown = {
-    noteId: note.note_id,
-    version: note.version,
-    content: note.content,
-  };
-  PebbleTS.sendAppMessage({ ...encodeNote(note.content), ...extra });
-  return true;
-}
-
-function isPending(note: NoteViewModel) {
-  // Not just the latest action: applying the instructions adds a done one
-  // while dictated ones can still be queued
-  return note.actions.some((a) => a.status === ActionStatus.PENDING);
-}
-
-// The action that finished last, the one the poller reports on
-function lastFinished(note: NoteViewModel) {
-  const time = (a: ActionModel) => Date.parse(a.updated_at);
-  return note.actions.reduce<ActionModel | undefined>(
-    (latest, a) => (!latest || time(a) > time(latest) ? a : latest),
-    undefined,
-  );
-}
-
-async function refreshNote() {
-  try {
-    const note = await makeClient().notes.getNoteById("default");
-    const pending = isPending(note);
-    sendNote(note, { Processing: pending ? 1 : 0 }, true);
-    // Actions dictated before the app was closed
-    if (pending) pollWhilePending(note.note_id);
-  } catch (e) {
-    console.error("Failed to fetch note", String(e));
-    sendFailure(e);
-  }
-}
-
-// The backend answers 202 when the LLM takes too long, matching its Retry-After
-const POLL_INTERVAL_MS = 2000;
-// Without any change of the note for this long the AI is considered stuck
-const POLL_TIMEOUT_MS = 3 * 60 * 1000;
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-let polling = false;
-
-// Polls the note in the background until the backend worker is done with all
-// of its actions, forwarding every change to the watch. One poller serves any
-// number of queued actions.
-async function pollWhilePending(noteId: string, lastModified?: string) {
-  if (polling) return;
-  polling = true;
-  try {
-    await pollNote(noteId, lastModified);
-  } finally {
-    polling = false;
-  }
-}
-
-async function pollNote(noteId: string, lastModified?: string) {
-  const notes = makeClient().notes;
-  let deadline = Date.now() + POLL_TIMEOUT_MS;
-
-  while (Date.now() < deadline) {
-    await sleep(POLL_INTERVAL_MS);
-    // The watch shows another note now
-    if (shown.noteId && shown.noteId !== noteId) return;
-
-    let note: NoteViewModel | null = null;
-    try {
-      // The server answers 304 until the note changes again
-      note = await notes.getNoteById(noteId, lastModified);
-    } catch (err) {
-      if (!(err instanceof ApiError && err.status === 304)) {
-        console.error("Failed to poll the note", String(err));
-        sendFailure(err);
-        return;
-      }
-    }
-    if (note === null) continue;
-    // Changed: from now on only newer changes are news
-    lastModified = note.last_modified;
-
-    if (isPending(note)) {
-      // An earlier action or something else changed the note
-      if (note.version > shown.version) deadline = Date.now() + POLL_TIMEOUT_MS;
-      sendNote(note, { Processing: 1 });
-      continue;
-    }
-
-    if (lastFinished(note)?.status === ActionStatus.FAILED) {
-      PebbleTS.sendAppMessage({ Status: "AI failed, try again" });
-    } else {
-      const done = { Vibe: 1, Processing: 0 };
-      // A delete may have sent this version or a newer one already, the
-      // banner has to go all the same. The watch takes keys only with a note.
-      if (!sendNote(note, done, true)) {
-        PebbleTS.sendAppMessage({ ...encodeNote(shown.content), ...done });
-      }
-    }
-    return;
-  }
-  PebbleTS.sendAppMessage({ Status: "AI is taking too long" });
-}
-
-function isAccepted(
-  response: NoteModel | ActionAcceptedModel,
-): response is ActionAcceptedModel {
-  return "note_last_modified" in response;
-}
-
-async function applyDictation(dictation: string) {
-  const actionPayload: ActionEditModel = {
-    note_id: "default",
-    action: dictation,
-  };
-  let response;
-  try {
-    response = await makeClient().actions.applyAction(actionPayload);
-  } catch (err) {
-    console.error("Failed to apply action", String(err));
-    sendFailure(err);
-    return;
-  }
-  if (isAccepted(response)) {
-    // Back to the note, more can be dictated while this is applied
-    PebbleTS.sendAppMessage({ Processing: 1 });
-    pollWhilePending(response.action.note_id, response.note_last_modified);
-    return;
-  }
-  sendNote(response, { Vibe: 1, Processing: 0 }, true);
-}
-
-// Dictations are sent one after another, so the backend queues them in the
-// order they were spoken
-let dictations: Promise<void> = Promise.resolve();
-
-function queueDictation(dictation: string) {
-  dictations = dictations.then(() => applyDictation(dictation));
-}
-
-// How often a delete is redone on a note that was changed in the meantime
-const DELETE_ATTEMPTS = 3;
-
-// Each index is relative to the note after the earlier deletes, like the
-// watch applied them to the note it showed
-async function deleteNoteLines(indexes: number[]) {
-  // The note the lines were deleted from, "default" may point at another one
-  const base = shown;
-  if (!base.noteId) return;
-  const notes = makeClient().notes;
-  const { content, deleted } = deleteLines(base.content, indexes);
-  let edit = { content, base_version: base.version };
-  try {
-    for (let attempt = 1; ; attempt++) {
-      try {
-        const updated = await notes.editNoteById(base.noteId, edit);
-        // The watch drops notes while deletes are queued, maybe the poller's
-        // last one: this one has to say whether actions are still running
-        sendNote(updated, { Processing: polling ? 1 : 0 }, true);
-        return;
-      } catch (e) {
-        const conflict = e instanceof ApiError && e.status === 409;
-        if (!conflict || attempt >= DELETE_ATTEMPTS) throw e;
-        // The note has changed since the watch got it: delete the same lines,
-        // found by their text, from the new one
-        const current = (e.body as NoteConflictModel).current;
-        edit = {
-          content: rebaseDeletes(current.content, deleted),
-          base_version: current.version,
-        };
-      }
-    }
-  } catch (e) {
-    console.error("Failed to delete line", String(e));
-    sendFailure(e);
-  }
-}
+const sync = new NoteSync({
+  api: makeClient,
+  send: (message) => PebbleTS.sendAppMessage(message),
+  encode: encodeNote,
+  onFailure: sendFailure,
+});
 
 Pebble.addEventListener("showConfiguration", async () => {
   let notes: ConfigNote[] | null = null;
@@ -284,7 +86,7 @@ async function beginSignIn(): Promise<string | null> {
   try {
     const flow = await startDeviceFlow();
     pollDeviceFlow(flow).then((signedIn) => {
-      if (signedIn) refreshNote();
+      if (signedIn) sync.refresh();
     });
     return flow.verification_uri_complete;
   } catch (e) {
@@ -332,21 +134,26 @@ type WebViewClosedEvent = { type: "webviewclosed"; response?: string };
     console.error("Bad config response", String(err));
     return;
   }
-  await refreshNote();
+  await sync.refresh();
 });
 
 Pebble.addEventListener("ready", async () => {
   console.log("App Started 2");
-  await refreshNote();
+  await sync.refresh();
 
   Pebble.addEventListener("appmessage", async (e) => {
     const payload = e.payload;
     // The watch sends a byte array of batched indexes
     const deleteLine: number[] | number | undefined = payload["DeleteLine"];
     if (deleteLine !== undefined) {
-      await deleteNoteLines(
+      await sync.deleteLines(
         Array.isArray(deleteLine) ? deleteLine : [deleteLine],
       );
+      return;
+    }
+    const switchStep: number | undefined = payload["SwitchNote"];
+    if (switchStep !== undefined) {
+      await sync.switchNote(switchStep);
       return;
     }
     const dictation: string | undefined = payload["Dictation"];
@@ -354,6 +161,6 @@ Pebble.addEventListener("ready", async () => {
       console.error("dictation key is wrong?");
       return;
     }
-    queueDictation(dictation);
+    sync.queueDictation(dictation);
   });
 });

@@ -16,3 +16,6 @@ void queue_delete_line(uint8_t index);
 void comm_flush_and_exit(void);
 // True once comm_flush_and_exit() is waiting for the phone
 bool comm_is_exiting(void);
+// Asks the phone for the next (step 1) or previous (step -1) note, after
+// sending queued deletes to the note they were made on
+void comm_switch_note(int8_t step);
