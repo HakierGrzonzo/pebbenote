@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from sqlalchemy.exc import IntegrityError
 
-from pebbenote.db import get_test_db
+from pebbenote.db import as_user, get_test_db
 from pebbenote.notes.schemas import NoteEditModel, NoteUpdateModel
 
 from ..tables import ActionStatus, Note, NoteAction, NoteRevision
@@ -19,25 +19,23 @@ uuid_gen = defaultdict(uuid4)
 class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
         self.user = "A user"
-        self.session = await self.enterAsyncContext(get_test_db())
-        self.repository = NoteRepository(session=self.session, user=self.user)
+        self.session = await self.enterAsyncContext(get_test_db(self.user))
+        self.repository = NoteRepository(session=self.session)
         await self.prep_data()
 
     async def prep_data(self):
-        self.session.add_all(
-            [
-                Note(
-                    owner=self.user if i < NUMBER_OF_NOTES else "Someone else",
-                    note_id=uuid_gen["note", i],
-                )
-                for i in range(NUMBER_OF_NOTES * 2)
-            ]
-        )
+        """Notes 0 to 3 are the user's, the rest are someone else's"""
+        await self.add_notes(range(NUMBER_OF_NOTES))
+        async with as_user(self.session, "Someone else"):
+            await self.add_notes(range(NUMBER_OF_NOTES, NUMBER_OF_NOTES * 2))
+
+    async def add_notes(self, indexes: range):
+        self.session.add_all([Note(note_id=uuid_gen["note", i]) for i in indexes])
         await self.session.flush()
         self.session.add_all(
             [
                 NoteRevision(note_id=uuid_gen["note", i], note_text="Some text")
-                for i in range(NUMBER_OF_NOTES * 2)
+                for i in indexes
             ]
         )
         await self.session.flush()
@@ -107,10 +105,9 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         self.assertEqual(first.content, DEFAULT_NOTE_TEXT)
 
     async def test_default_note_per_user(self):
-        other = NoteRepository(session=self.session, user="Someone else")
-
         ours = await self.repository.get_note_by_id("default")
-        theirs = await other.get_note_by_id("default")
+        async with as_user(self.session, "Someone else"):
+            theirs = await self.repository.get_note_by_id("default")
 
         self.assertNotEqual(ours.note_id, theirs.note_id)
 
@@ -128,7 +125,7 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
 
     async def test_second_default_rejected(self):
         await self.repository.get_note_by_id("default")
-        self.session.add(Note(owner=self.user, is_default=True))
+        self.session.add(Note(is_default=True))
         with self.assertRaises(IntegrityError):
             await self.session.flush()
 
@@ -186,9 +183,10 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
 
     async def test_set_title_non_ours(self):
         await self.repository.set_title(uuid_gen["note", NUMBER_OF_NOTES], "Mine")
-        other = NoteRepository(session=self.session, user="Someone else")
-
-        note = await other.get_note_by_id(uuid_gen["note", NUMBER_OF_NOTES])
+        async with as_user(self.session, "Someone else"):
+            note = await self.repository.get_note_by_id(
+                uuid_gen["note", NUMBER_OF_NOTES]
+            )
 
         self.assertEqual(note.title, "Some text")
 

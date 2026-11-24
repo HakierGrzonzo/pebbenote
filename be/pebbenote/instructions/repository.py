@@ -3,7 +3,6 @@ from uuid import UUID
 from sqlalchemy import Select
 from sqlalchemy.dialects.postgresql import insert
 
-from pebbenote.auth import CurrentUser
 from pebbenote.db import DbSession
 from pebbenote.tables import InstructionList, InstructionRevision
 from pebbenote.versioning import claim_version, latest_revisions
@@ -18,9 +17,8 @@ class UserInstructionRepository:
     its latest revision, the version is the number of that revision.
     """
 
-    def __init__(self, session: DbSession, user: CurrentUser) -> None:
+    def __init__(self, session: DbSession) -> None:
         self.session = session
-        self.user = user
 
     def _select_list(self) -> Select[tuple[InstructionList, InstructionRevision, int]]:
         latest = latest_revisions(
@@ -35,7 +33,6 @@ class UserInstructionRepository:
                 InstructionRevision,
                 InstructionRevision.instruction_revision_id == latest.c.revision_id,
             )
-            .where(InstructionList.owner == self.user)
         )
 
     async def _create_list(self) -> None:
@@ -43,7 +40,7 @@ class UserInstructionRepository:
         list_id = (
             await self.session.execute(
                 insert(InstructionList)
-                .values(owner=self.user)
+                .values()
                 .on_conflict_do_nothing(index_elements=[InstructionList.owner])
                 .returning(InstructionList.instruction_list_id)
             )

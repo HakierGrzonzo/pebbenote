@@ -12,6 +12,10 @@ class AppSettings(BaseSettings):
     POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = "postgres"
     POSTGRES_HOST: str = "localhost"
+    # The role the API and worker connect as, row level security applies to
+    # it. Migrations connect as POSTGRES_USER and create it.
+    POSTGRES_APP_USER: str = "pebbenote_app"
+    POSTGRES_APP_PASSWORD: str = "pebbenote_app"
     POSTGRES_LOG_QUERIES: bool = False
 
     AI_PROVIDER: AiProviderKinds = "Ollama"

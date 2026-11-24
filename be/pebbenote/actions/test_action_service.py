@@ -21,13 +21,12 @@ from .schemas import ActionEditModel
 
 class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        user = "A user"
-        self.session = await self.enterAsyncContext(get_test_db())
+        self.session = await self.enterAsyncContext(get_test_db("A user"))
         self.ai = MockAdapter()
         self.ai.set_result("- result")
-        self.instructions = UserInstructionRepository(self.session, user)
+        self.instructions = UserInstructionRepository(self.session)
         self.actions = NoteActionRepository(self.session)
-        self.notes = NoteRepository(self.session, user)
+        self.notes = NoteRepository(self.session)
         self.service = NoteActionService(
             self.actions,
             self.notes,

@@ -3,7 +3,6 @@ from uuid import UUID
 from sqlalchemy import Select, desc, func, update
 from sqlalchemy.dialects.postgresql import insert
 
-from pebbenote.auth import CurrentUser
 from pebbenote.db import DbSession
 from pebbenote.versioning import claim_version, latest_revisions
 
@@ -34,9 +33,8 @@ def fallback_title(content: str) -> str:
 
 
 class NoteRepository:
-    def __init__(self, session: DbSession, user: CurrentUser) -> None:
+    def __init__(self, session: DbSession) -> None:
         self.session = session
-        self.user = user
 
     def _select_notes(self) -> Select[tuple[Note, NoteRevision, int]]:
         """
@@ -50,7 +48,7 @@ class NoteRepository:
             Select(Note, NoteRevision, latest.c.version)
             .join(latest, latest.c.parent_id == Note.note_id)
             .join(NoteRevision, NoteRevision.note_revision_id == latest.c.revision_id)
-            .where(Note.owner == self.user, Note.deleted_at.is_(None))
+            .where(Note.deleted_at.is_(None))
             # A job reads the note again after the LLM call, in one session
             .execution_options(populate_existing=True)
         )
@@ -108,7 +106,7 @@ class NoteRepository:
         note_id = (
             await self.session.execute(
                 insert(Note)
-                .values(owner=self.user, is_default=True)
+                .values(is_default=True)
                 .on_conflict_do_nothing(
                     index_elements=[Note.owner], index_where=Note.is_default
                 )
@@ -149,9 +147,7 @@ class NoteRepository:
     async def set_title(self, note_id: UUID, title: str | None) -> None:
         """Stores the title the LLM made, None falls back to the first line"""
         await self.session.execute(
-            update(Note)
-            .where(Note.note_id == note_id, Note.owner == self.user)
-            .values(title=title)
+            update(Note).where(Note.note_id == note_id).values(title=title)
         )
 
     async def lock_note(self, note_id: UUID) -> None:
@@ -160,9 +156,7 @@ class NoteRepository:
         see what a writer that held the lock before has committed.
         """
         await self.session.execute(
-            Select(Note.note_id)
-            .where(Note.note_id == note_id, Note.owner == self.user)
-            .with_for_update()
+            Select(Note.note_id).where(Note.note_id == note_id).with_for_update()
         )
 
     async def claim_version(
@@ -194,7 +188,7 @@ class NoteRepository:
         return await self.add_revision(note.note_id, note_model.content)
 
     async def create_note(self, note_model: NoteEditModel) -> NoteModel:
-        note = Note(owner=self.user)
+        note = Note()
         self.session.add(note)
         await self.session.flush()
         self.session.add(
@@ -211,10 +205,7 @@ class NoteRepository:
             # Clear the old default first: the partial unique index allows
             # only one default per owner at any point.
             await self.session.execute(
-                update(Note)
-                .where(Note.owner == self.user)
-                .where(Note.is_default)
-                .values(is_default=False)
+                update(Note).where(Note.is_default).values(is_default=False)
             )
             note.is_default = True
             await self.session.flush()

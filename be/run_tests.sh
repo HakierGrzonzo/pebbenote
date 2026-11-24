@@ -5,6 +5,8 @@ export POSTGRES_PASSWORD=postgres
 export POSTGRES_DB=test
 export POSTGRES_HOST=127.0.0.1
 export PGUSER=postgres
+export POSTGRES_APP_USER=pebbenote_app
+export POSTGRES_APP_PASSWORD=pebbenote_app
 
 export PGPASSWORD=$POSTGRES_PASSWORD
 
@@ -18,6 +20,6 @@ sql "DROP DATABASE test" || true
 sql "CREATE DATABASE test"
 
 python -m alembic -q upgrade head > /tmp/alembic_err 2> /tmp/alembic_err \
-  || (cat /tmp/alembic_err; exit 1)
+  || { cat /tmp/alembic_err; exit 1; }
 
 python -m unittest discover -v
