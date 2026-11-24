@@ -173,6 +173,15 @@ void queue_delete_line(uint8_t index) {
 
 bool comm_sign_in_required(void) { return s_sign_in_required; }
 
+// Shows the note we already have, e.g. after a status message
+static void show_cached_note(void) {
+  if (numberOfMessages == 0) {
+    display_text("Note is empty");
+  } else {
+    display_notes();
+  }
+}
+
 static void handle_inbox(DictionaryIterator *iter) {
   Tuple *number_on_lines = dict_find(iter, MESSAGE_KEY_NumberOfLines);
 
@@ -196,11 +205,7 @@ static void handle_inbox(DictionaryIterator *iter) {
   if (!number_on_lines) {
     if (processing) {
       // The action was accepted: back from "Sending..." to the note we have
-      if (numberOfMessages == 0) {
-        display_text("Note is empty");
-      } else {
-        display_notes();
-      }
+      show_cached_note();
       ui_set_processing(true);
       return;
     }
@@ -318,6 +323,10 @@ static void dictation_session_callback(DictationSession *session, DictationSessi
   if (status == DictationSessionStatusSuccess) {
     // Display the dictated text
     send_dictation(transcription);
+  } else if (status == DictationSessionStatusFailureTranscriptionRejected ||
+             status == DictationSessionStatusFailureTranscriptionRejectedWithError) {
+    // The user backed out of the dictation UI
+    show_cached_note();
   } else {
     // Display the reason for any error
     static char s_failed_buff[128];
