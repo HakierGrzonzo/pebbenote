@@ -24,7 +24,7 @@ export function isValidUrl(url: string) {
 
 export type ConfigNote = {
   note_id: string;
-  content: string;
+  title: string;
   is_default: boolean;
 };
 
@@ -108,7 +108,7 @@ function buildConfigPage(
       box.textContent = signInUrl ? "Sign in to see notes." : "Backend unreachable - notes unavailable.";
       return;
     }
-    var rows = notes.map(function (n) { return { id: n.note_id, text: label(n.content, "") }; })
+    var rows = notes.map(function (n) { return { id: n.note_id, text: label(n.title, "") }; })
       .concat(pending.map(function (t, i) { return { id: "new:" + i, text: label(t, " (new)") }; }));
     rows.forEach(function (r) {
       var isDeleted = deleted.indexOf(r.id) >= 0;

@@ -22,6 +22,7 @@ export class NotesService {
   }
   /**
    * Create Note
+   * The note gets a title in the background
    * @param content
    * @returns NoteModel Successful Response
    * @throws ApiError
@@ -66,6 +67,7 @@ export class NotesService {
   }
   /**
    * Edit Note By Id
+   * The note gets a new title in the background
    * @param noteId
    * @param requestBody
    * @returns NoteModel Successful Response

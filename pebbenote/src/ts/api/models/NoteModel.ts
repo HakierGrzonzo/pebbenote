@@ -5,6 +5,7 @@
 export type NoteModel = {
   note_id: string;
   content: string;
+  title: string;
   is_default: boolean;
   updated_at: string;
   version: number;

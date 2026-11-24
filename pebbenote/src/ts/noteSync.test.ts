@@ -44,8 +44,8 @@ function action(noteId: string, status: ActionStatus): ActionModel {
 }
 
 function toModel(note: NoteViewModel): NoteModel {
-  const { note_id, content, is_default, updated_at, version } = note;
-  return { note_id, content, is_default, updated_at, version };
+  const { note_id, content, title, is_default, updated_at, version } = note;
+  return { note_id, content, title, is_default, updated_at, version };
 }
 
 // An in-memory backend and watch. The encoded note is just its content, under
@@ -62,6 +62,7 @@ class Fake {
     this.notes.push({
       note_id,
       content,
+      title: content.split("\n")[0],
       version,
       is_default: this.notes.length === 0,
       updated_at: new Date().toISOString(),
