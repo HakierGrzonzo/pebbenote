@@ -13,10 +13,10 @@ SHOPPING_LIST = "- Shopping list:\n    - A\n    - B\n    - C"
 
 class NoteTitleServiceTestCase(IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
-        self.session = await self.enterAsyncContext(get_test_db())
+        self.session = await self.enterAsyncContext(get_test_db("A user"))
         self.ai = MockAdapter()
         self.ai.title = "Shopping list: A, B, C"
-        self.notes = NoteRepository(self.session, "A user")
+        self.notes = NoteRepository(self.session)
         self.service = NoteTitleService(self.notes, self.ai)
 
     async def test_stores_the_title(self):

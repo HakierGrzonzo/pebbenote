@@ -79,6 +79,8 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
       POSTGRES_HOST: localhost
+      POSTGRES_APP_USER: pebbenote_app
+      POSTGRES_APP_PASSWORD: pebbenote_app
       OLLAMA_HOST: "localhost"
       CHAT_MODEL: ${CHAT_MODEL:-gemma4:e2b}
       DECISION_MODEL: ${DECISION_MODEL:-nimble}
@@ -113,6 +115,8 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
       POSTGRES_HOST: localhost
+      POSTGRES_APP_USER: pebbenote_app
+      POSTGRES_APP_PASSWORD: pebbenote_app
       OLLAMA_HOST: "localhost"
       CHAT_MODEL: ${CHAT_MODEL:-gemma4:e2b}
       DECISION_MODEL: ${DECISION_MODEL:-nimble}

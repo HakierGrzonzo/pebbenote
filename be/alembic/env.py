@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 import pebbenote.tables  # noqa: F401
 from alembic import context
-from pebbenote.db import Base, postgresql_url
+from pebbenote.db import Base, owner_url
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -42,7 +42,7 @@ def run_migrations_offline() -> None:
 
     """
     context.configure(
-        url=postgresql_url,
+        url=owner_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -65,7 +65,7 @@ async def run_async_migrations() -> None:
 
     """
 
-    connectable = create_async_engine(postgresql_url, echo=True)
+    connectable = create_async_engine(owner_url, echo=True)
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

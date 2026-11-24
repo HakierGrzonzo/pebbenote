@@ -91,5 +91,10 @@ docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
 docker compose -f docker-compose.prod.yml --env-file .env.prod exec be poetry run alembic upgrade head
 ```
 
+The backend connects as `pebbenote_app`, a role the migrations create with
+`POSTGRES_APP_PASSWORD` from the env file. Row level security limits it to
+the signed-in user's rows. To change the password, set it and run the
+migrations again, or `ALTER ROLE` by hand.
+
 Grafana with the backend's telemetry is published on `GRAFANA_PORT` (default
 3000), meant to be put behind a reverse proxy on the LAN.

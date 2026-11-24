@@ -22,6 +22,13 @@ cd be && poetry run bash run_tests.sh
   the app's `postgres` database.
 - Each test runs in a transaction that is rolled back (`get_test_db()` in
   `pebbenote/db.py`), so tests can write freely.
+- The app and the tests connect as `pebbenote_app`, which row level security
+  limits to the rows of the user in the `pebbenote.user` setting. Sessions get
+  it from `get_db(user)` / `get_test_db(user)`, and `as_user(session, user)`
+  switches it in a test. Migrations run as `postgres`.
+- New table: the migration grants it to `pebbenote_app` and adds an
+  `owner_only` policy (see `c1a2b3d4e5f6_add_row_level_security.py`),
+  otherwise the app can't read it.
 - The LLM is replaced by `MockAdapter` (`pebbenote/llm/mock.py`): set its
   answer with `set_result(...)` and read the chat it got with
   `get_called_with()`. Unit tests never call Ollama.
