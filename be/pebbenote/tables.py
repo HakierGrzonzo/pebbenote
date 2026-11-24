@@ -23,6 +23,16 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def owner_column(**kwargs):
+    # Row level security shows only the rows of this user, see db.py
+    return mapped_column(
+        Text,
+        nullable=False,
+        server_default=text("current_setting('pebbenote.user')"),
+        **kwargs,
+    )
+
+
 def updated_at_column():
     # Set from Python so flushed objects keep a loaded value, a SQL expression
     # would expire the attribute and need a lazy load
@@ -51,7 +61,7 @@ class Note(Base):
     # also when the note was last updated
     revisions: Mapped[list["NoteRevision"]] = relationship(back_populates="note")
 
-    owner = mapped_column(Text, nullable=False)
+    owner = owner_column()
 
     is_default = mapped_column(Boolean, nullable=False, server_default=false())
 
@@ -146,7 +156,7 @@ class InstructionList(Base):
         Uuid, primary_key=True, server_default=func.gen_random_uuid()
     )
 
-    owner = mapped_column(Text, nullable=False, unique=True)
+    owner = owner_column(unique=True)
 
     # The instructions are the ones of the latest revision
     revisions: Mapped[list["InstructionRevision"]] = relationship(

@@ -18,6 +18,6 @@ sql "DROP DATABASE test" || true
 sql "CREATE DATABASE test"
 
 python -m alembic -q upgrade head > /tmp/alembic_err 2> /tmp/alembic_err \
-  || (cat /tmp/alembic_err; exit 1)
+  || { cat /tmp/alembic_err; exit 1; }
 
 python -m unittest discover -v
