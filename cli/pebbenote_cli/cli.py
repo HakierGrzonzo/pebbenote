@@ -88,16 +88,12 @@ def cmd_edit(config, args):
     print("Note synced.", file=sys.stderr)
 
 
-def first_line(note):
-    return note.content.splitlines()[0] if note.content else ""
-
-
 def cmd_delete(config, args):
     note = api.call(config, get_note_by_id, note_id=args.note_id)
     if not args.yes:
         if not sys.stdin.isatty():
             raise CliError("Not deleting without a terminal to confirm; pass --yes")
-        answer = input(f'Delete note "{first_line(note)}"? [y/N] ')
+        answer = input(f'Delete note "{note.title}"? [y/N] ')
         if answer.strip().lower() not in ("y", "yes"):
             print("Not deleted.", file=sys.stderr)
             return
@@ -109,7 +105,7 @@ def cmd_delete(config, args):
 def cmd_list(config, _args):
     for note in api.call(config, list_notes):
         marker = "*" if note.is_default else " "
-        print(f"{marker} {note.note_id}  {first_line(note)}")
+        print(f"{marker} {note.note_id}  {note.title}")
 
 
 def cmd_instructions(config, args):
@@ -168,7 +164,7 @@ def cmd_action(config, args):
 
 
 def complete_note_ids(**_kwargs):
-    """Completes note ids, with each note's first line as description."""
+    """Completes note ids, with each note's title as description."""
     ids = {"default": "the default note"}
     try:
         # Completion runs on every Tab: never start a login from it
@@ -177,7 +173,7 @@ def complete_note_ids(**_kwargs):
         # Logged out, offline or a broken config: complete what we know
         return ids
     for note in notes:
-        ids[str(note.note_id)] = first_line(note)
+        ids[str(note.note_id)] = note.title
     return ids
 
 

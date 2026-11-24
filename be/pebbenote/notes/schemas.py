@@ -9,6 +9,8 @@ from pebbenote.actions.schemas import ActionModel
 class NoteModel(BaseModel):
     note_id: UUID
     content: str
+    # Made by the LLM in the background, the first line of the note until then
+    title: str
     is_default: bool
     updated_at: datetime
     # The number of revisions of the note, an edit has to name the one it is

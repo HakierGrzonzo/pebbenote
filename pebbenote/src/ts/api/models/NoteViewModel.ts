@@ -6,6 +6,7 @@ import type { ActionModel } from "./ActionModel";
 export type NoteViewModel = {
   note_id: string;
   content: string;
+  title: string;
   is_default: boolean;
   updated_at: string;
   version: number;

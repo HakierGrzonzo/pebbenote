@@ -4,6 +4,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Response, status
 
+from pebbenote.actions.tasks import start_title
+from pebbenote.auth import CurrentUser
+from pebbenote.db import DbSession
 from pebbenote.http_dates import is_modified_since
 from pebbenote.notes.repository import NoteRepository
 from pebbenote.notes.schemas import (
@@ -76,18 +79,34 @@ async def get_note_by_id(
 )
 async def edit_note_by_id(
     repository: Annotated[NoteRepository, Depends()],
+    session: DbSession,
+    user: CurrentUser,
     note_id: NoteId,
     note: NoteUpdateModel,
 ) -> NoteModel:
-    return await repository.update_note(note_id, note)
+    """The note gets a new title in the background"""
+    updated = await repository.update_note(note_id, note)
+    # An edit that changes nothing is not stored
+    if updated.version != note.base_version:
+        # The worker uses its own connection, so the edit must be visible
+        await session.commit()
+        await start_title(updated.note_id, user)
+    return updated
 
 
 @note_router.post("/")
 async def create_note(
     repository: Annotated[NoteRepository, Depends()],
+    session: DbSession,
+    user: CurrentUser,
     new_note: Annotated[NoteEditModel, Depends()],
 ) -> NoteModel:
-    return await repository.create_note(new_note)
+    """The note gets a title in the background"""
+    note = await repository.create_note(new_note)
+    # The worker uses its own connection, so the note must be visible
+    await session.commit()
+    await start_title(note.note_id, user)
+    return note
 
 
 @note_router.put("/{note_id}/default")

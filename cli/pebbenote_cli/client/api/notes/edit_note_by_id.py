@@ -79,6 +79,8 @@ def sync_detailed(
 ) -> Response[HTTPValidationError | NoteConflictModel | NoteModel]:
     """Edit Note By Id
 
+     The note gets a new title in the background
+
     Args:
         note_id (Literal['default'] | UUID):
         body (NoteUpdateModel):
@@ -111,6 +113,8 @@ def sync(
 ) -> HTTPValidationError | NoteConflictModel | NoteModel | None:
     """Edit Note By Id
 
+     The note gets a new title in the background
+
     Args:
         note_id (Literal['default'] | UUID):
         body (NoteUpdateModel):
@@ -137,6 +141,8 @@ async def asyncio_detailed(
     body: NoteUpdateModel,
 ) -> Response[HTTPValidationError | NoteConflictModel | NoteModel]:
     """Edit Note By Id
+
+     The note gets a new title in the background
 
     Args:
         note_id (Literal['default'] | UUID):
@@ -167,6 +173,8 @@ async def asyncio(
     body: NoteUpdateModel,
 ) -> HTTPValidationError | NoteConflictModel | NoteModel | None:
     """Edit Note By Id
+
+     The note gets a new title in the background
 
     Args:
         note_id (Literal['default'] | UUID):

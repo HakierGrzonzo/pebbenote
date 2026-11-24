@@ -17,6 +17,7 @@ class NoteModel:
     Attributes:
         note_id (UUID):
         content (str):
+        title (str):
         is_default (bool):
         updated_at (datetime.datetime):
         version (int):
@@ -24,6 +25,7 @@ class NoteModel:
 
     note_id: UUID
     content: str
+    title: str
     is_default: bool
     updated_at: datetime.datetime
     version: int
@@ -33,6 +35,8 @@ class NoteModel:
         note_id = str(self.note_id)
 
         content = self.content
+
+        title = self.title
 
         is_default = self.is_default
 
@@ -46,6 +50,7 @@ class NoteModel:
             {
                 "note_id": note_id,
                 "content": content,
+                "title": title,
                 "is_default": is_default,
                 "updated_at": updated_at,
                 "version": version,
@@ -61,6 +66,8 @@ class NoteModel:
 
         content = d.pop("content")
 
+        title = d.pop("title")
+
         is_default = d.pop("is_default")
 
         updated_at = datetime.datetime.fromisoformat(d.pop("updated_at"))
@@ -70,6 +77,7 @@ class NoteModel:
         note_model = cls(
             note_id=note_id,
             content=content,
+            title=title,
             is_default=is_default,
             updated_at=updated_at,
             version=version,

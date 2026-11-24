@@ -9,6 +9,7 @@ function note(noteId: string): NoteModel {
   return {
     note_id: noteId,
     content: "",
+    title: "",
     is_default: false,
     updated_at: new Date().toISOString(),
     version: 1,

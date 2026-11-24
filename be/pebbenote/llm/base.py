@@ -18,6 +18,10 @@ class AIAdapter:
         """Rewrites a user utterance as a first person standing instruction"""
         raise NotImplementedError()
 
+    async def generate_title(self, note: str) -> str:
+        """A short one line title for the note"""
+        raise NotImplementedError()
+
 
 class AIProvider:
     def __init__(self, ai_class: type[AIAdapter]) -> None:

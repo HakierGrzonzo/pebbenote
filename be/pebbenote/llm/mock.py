@@ -18,6 +18,9 @@ class MockAdapter(AIAdapter):
         }
         self.input_kind: InputKind = "note"
         self.rewritten_instruction = "I should follow the instruction"
+        self.title = "A title"
+        # The notes generate_title was called with
+        self.titled: list[str] = []
 
     def set_result(self, value: str, kind: CallType = "chat"):
         self._results[kind] = value
@@ -39,3 +42,7 @@ class MockAdapter(AIAdapter):
 
     async def rewrite_instruction(self, text: str) -> str:
         return self.rewritten_instruction
+
+    async def generate_title(self, note: str) -> str:
+        self.titled.append(note)
+        return self.title

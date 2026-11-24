@@ -66,6 +66,8 @@ def sync_detailed(
 ) -> Response[HTTPValidationError | NoteModel]:
     """Create Note
 
+     The note gets a title in the background
+
     Args:
         content (str):
 
@@ -95,6 +97,8 @@ def sync(
 ) -> HTTPValidationError | NoteModel | None:
     """Create Note
 
+     The note gets a title in the background
+
     Args:
         content (str):
 
@@ -118,6 +122,8 @@ async def asyncio_detailed(
     content: str,
 ) -> Response[HTTPValidationError | NoteModel]:
     """Create Note
+
+     The note gets a title in the background
 
     Args:
         content (str):
@@ -145,6 +151,8 @@ async def asyncio(
     content: str,
 ) -> HTTPValidationError | NoteModel | None:
     """Create Note
+
+     The note gets a title in the background
 
     Args:
         content (str):

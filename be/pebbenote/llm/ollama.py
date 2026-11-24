@@ -8,12 +8,15 @@ from ollama import (
 )
 from pydantic import ValidationError
 
-from pebbenote.actions.prompts import rewrite_instruction_system_prompt
+from pebbenote.actions.prompts import (
+    generate_title_system_prompt,
+    rewrite_instruction_system_prompt,
+)
 
 from ..config import settings
 from .base import AIAdapter
 from .markdown import render_markdown_list
-from .schemas import InputKind, InstructionRewrite, NoteList
+from .schemas import InputKind, InstructionRewrite, NoteList, NoteTitle
 from .telemetry import llm_call
 
 logger = getLogger(__name__)
@@ -108,3 +111,27 @@ class OllamaAdapter(AIAdapter):
                     "LLM returned data not matching the instruction schema"
                 )
                 raise
+
+    async def generate_title(self, note: str) -> str:
+        with llm_call(self.model, "title", temperature=self.temperature) as call:
+            response: ChatResponse = await self._ollama.chat(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": generate_title_system_prompt},
+                    {"role": "user", "content": note},
+                ],
+                format=NoteTitle.model_json_schema(),
+                options={"temperature": self.temperature},
+            )
+            call.record_response(
+                response.model, response.prompt_eval_count, response.eval_count
+            )
+            content = response.message.content
+            assert content is not None
+            try:
+                title = NoteTitle.model_validate_json(content).title
+            except ValidationError:
+                logger.exception("LLM returned data not matching the title schema")
+                raise
+        # A title is one line
+        return " ".join(title.split())

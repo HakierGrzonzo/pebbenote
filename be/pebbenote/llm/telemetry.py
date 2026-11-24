@@ -12,7 +12,7 @@ from opentelemetry import metrics, trace
 from opentelemetry.trace import Span, SpanKind
 from opentelemetry.util.types import AttributeValue
 
-type LlmTask = Literal["note", "classify", "rewrite_instruction"]
+type LlmTask = Literal["note", "classify", "rewrite_instruction", "title"]
 
 tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)

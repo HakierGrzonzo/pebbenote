@@ -33,6 +33,7 @@ UPDATED_AT = datetime(2026, 1, 1)
 NOTE = NoteViewModel(
     note_id=NOTE_ID,
     content="Shopping\n- milk\n",
+    title="Shopping: milk",
     is_default=True,
     updated_at=UPDATED_AT,
     version=3,
@@ -135,6 +136,7 @@ class MainTestCase(TestCase):
             NoteModel(
                 note_id=UUID("00000000-0000-0000-0000-00000000000b"),
                 content="",
+                title="",
                 is_default=False,
                 updated_at=UPDATED_AT,
                 version=1,
@@ -145,7 +147,7 @@ class MainTestCase(TestCase):
         self.call.assert_called_once_with(CONFIG, list_notes)
         self.assertEqual(
             stdout,
-            f"* {NOTE_ID}  Shopping\n  00000000-0000-0000-0000-00000000000b  \n",
+            f"* {NOTE_ID}  Shopping: milk\n  00000000-0000-0000-0000-00000000000b  \n",
         )
 
     def test_instructions_without_tty_prints_list(self):
@@ -216,6 +218,7 @@ class MainTestCase(TestCase):
         return NoteModel(
             note_id=NOTE_ID,
             content=content,
+            title="",
             is_default=True,
             updated_at=UPDATED_AT,
             version=4,
@@ -297,6 +300,7 @@ class MainTestCase(TestCase):
         self.call.return_value = NoteModel(
             note_id=NOTE_ID,
             content="Shopping\n- milk\n- oat milk\n",
+            title="",
             is_default=True,
             updated_at=UPDATED_AT,
             version=4,
@@ -361,6 +365,7 @@ class MainTestCase(TestCase):
             NoteModel(
                 note_id=other_id,
                 content="",
+                title="",
                 is_default=False,
                 updated_at=UPDATED_AT,
                 version=1,
@@ -371,7 +376,7 @@ class MainTestCase(TestCase):
             cli.complete_note_ids(prefix=""),
             {
                 "default": "the default note",
-                str(NOTE_ID): "Shopping",
+                str(NOTE_ID): "Shopping: milk",
                 str(other_id): "",
             },
         )
@@ -397,7 +402,7 @@ class MainTestCase(TestCase):
     def test_delete_confirmed(self):
         prompt, stderr = self.run_delete("abc", answer="y")
 
-        prompt.assert_called_once_with('Delete note "Shopping"? [y/N] ')
+        prompt.assert_called_once_with('Delete note "Shopping: milk"? [y/N] ')
         self.call.assert_any_call(CONFIG, get_note_by_id, note_id="abc")
         # The note that was read, not the id it was asked by
         self.call.assert_called_with(CONFIG, delete_note, note_id=NOTE_ID)

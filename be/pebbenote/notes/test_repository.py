@@ -9,7 +9,7 @@ from pebbenote.notes.schemas import NoteEditModel, NoteUpdateModel
 
 from ..tables import ActionStatus, Note, NoteAction, NoteRevision
 from .exceptions import NoteConflict, NoteDoesNotExist
-from .repository import DEFAULT_NOTE_TEXT, NoteRepository
+from .repository import DEFAULT_NOTE_TEXT, NoteRepository, fallback_title
 
 NUMBER_OF_NOTES = 4
 
@@ -159,6 +159,38 @@ class NoteRepositoryTestCase(IsolatedAsyncioTestCase):
         after = await self.edit(uuid_gen["note", 0], "Edited")
 
         self.assertGreater(after.updated_at, before.updated_at)
+
+    def test_fallback_title_is_the_first_line(self):
+        self.assertEqual(
+            fallback_title("- Shopping list:\n    - A\n    - B"), "Shopping list:"
+        )
+        self.assertEqual(fallback_title("  Plain text  "), "Plain text")
+        self.assertEqual(fallback_title(""), "")
+
+    async def test_title_falls_back_to_the_first_line(self):
+        note = await self.edit(uuid_gen["note", 0], "- Groceries\n    - milk")
+
+        self.assertEqual(note.title, "Groceries")
+
+    async def test_stored_title_wins_and_outlives_edits(self):
+        note_id = uuid_gen["note", 0]
+        await self.repository.set_title(note_id, "Groceries: milk")
+        await self.edit(note_id, "- Groceries\n    - milk\n    - eggs")
+
+        note = await self.repository.get_note_by_id(note_id)
+        listed = {n.note_id: n for n in await self.repository.list_notes()}
+
+        self.assertEqual(note.title, "Groceries: milk")
+        self.assertEqual(listed[note_id].title, "Groceries: milk")
+        self.assertEqual(listed[uuid_gen["note", 1]].title, "Some text")
+
+    async def test_set_title_non_ours(self):
+        await self.repository.set_title(uuid_gen["note", NUMBER_OF_NOTES], "Mine")
+        other = NoteRepository(session=self.session, user="Someone else")
+
+        note = await other.get_note_by_id(uuid_gen["note", NUMBER_OF_NOTES])
+
+        self.assertEqual(note.title, "Some text")
 
     async def revisions(self, note_id=uuid_gen["note", 0]):
         return await self.repository.list_revisions(note_id, limit=100)
