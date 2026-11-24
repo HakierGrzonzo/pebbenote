@@ -55,6 +55,11 @@ class Note(Base):
 
     is_default = mapped_column(Boolean, nullable=False, server_default=false())
 
+    # A short name made by the LLM after the note changes, so it may describe
+    # an older revision for a while. Not versioned, it can be made again.
+    # Empty until the first one is made: the first line stands in.
+    title = mapped_column(Text, nullable=True)
+
     # Set when the user deletes the note, which then is gone for every query.
     # Its revisions and actions are kept.
     deleted_at = mapped_column(TIMESTAMP(timezone=True), nullable=True)

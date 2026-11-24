@@ -27,6 +27,12 @@ DEFAULT_NOTE_TEXT = "\n".join(
 )
 
 
+def fallback_title(content: str) -> str:
+    """The title of a note before the LLM has made one: its first line"""
+    first_line = content.split("\n", 1)[0].strip()
+    return first_line.removeprefix("- ").strip()
+
+
 class NoteRepository:
     def __init__(self, session: DbSession, user: CurrentUser) -> None:
         self.session = session
@@ -54,6 +60,7 @@ class NoteRepository:
         return NoteModel(
             note_id=note.note_id,
             content=revision.note_text,
+            title=note.title or fallback_title(revision.note_text),
             is_default=note.is_default,
             updated_at=revision.created_at,
             version=version,
@@ -138,6 +145,14 @@ class NoteRepository:
 
     async def get_note_by_id(self, note_id: NoteId) -> NoteModel:
         return self.map_note(*await self._raw_get_note_by_id(note_id))
+
+    async def set_title(self, note_id: UUID, title: str | None) -> None:
+        """Stores the title the LLM made, None falls back to the first line"""
+        await self.session.execute(
+            update(Note)
+            .where(Note.note_id == note_id, Note.owner == self.user)
+            .values(title=title)
+        )
 
     async def lock_note(self, note_id: UUID) -> None:
         """
