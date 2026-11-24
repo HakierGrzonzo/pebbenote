@@ -38,6 +38,25 @@ cd be && poetry run bash run_tests.sh
   `POSTGRES_HOST=127.0.0.1 POSTGRES_DB=test poetry run alembic downgrade -1`,
   then `upgrade head`.
 
+### Prompt tests (`be/pebbenote/prompt_tests/`)
+
+```bash
+cd be && PEBBENOTE_PROMPT_TESTS=1 poetry run python -m unittest discover -v -s pebbenote/prompt_tests -t .
+```
+
+Cases sent to the real models (`CHAT_MODEL`, `DECISION_MODEL`) through local
+Ollama, checking what the prompts make them do: edits, undo, standing
+instructions, the classifier, instruction rewrites and titles. No Postgres
+needed, the chat comes from `build_note_chat` like in production. Without the
+env var they are skipped, so `run_tests.sh` and CI never need Ollama.
+
+The `prompt-tests` pre-commit hook runs them when a commit touches the
+prompts, the chat building, `llm/`, `config.py` or the tests; it fails when
+Ollama is down. `SKIP=prompt-tests git commit ...` to commit without them
+(CI skips them the same way). A failure is about the prompt or the model, not
+necessarily the code: look at the answer in the message before loosening an
+assertion.
+
 ### CLI (`cli/`)
 
 ```bash
