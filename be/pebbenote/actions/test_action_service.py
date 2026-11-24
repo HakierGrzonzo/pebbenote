@@ -170,6 +170,16 @@ class NoteActionServiceTestCase(IsolatedAsyncioTestCase):
         )
         self.assertEqual(contents[-1], "revert what I just deleted")
 
+    async def test_history_left_out_when_not_needed(self):
+        await self.edit_note("- milk\n- eggs")
+        await self.edit_note("- milk")
+        self.ai.needs_history = False
+
+        await self.run_action("add bread")
+
+        contents = [m.content for m in self.called_chat().messages if m.kind == "user"]
+        self.assertEqual(contents, ["- milk", "The note is now:\n- milk", "add bread"])
+
     async def test_past_action_is_a_user_assistant_pair(self):
         await self.run_action("add milk")
         await self.run_action("add eggs")

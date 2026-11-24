@@ -31,10 +31,10 @@ is represented as:
   ]}
 ]}
 
-Below is the history of the note: the starting note, then each change as a
-unified diff, either asked for by the user and made by you, or made by the user
-by hand. It ends with the current note. When the user asks to undo or revert
-something, use the diffs to find what changed.
+Below is the note. When its history is relevant, it comes first: the starting
+note, then each change as a unified diff, either asked for by the user and made
+by you, or made by the user by hand. It ends with the current note. When the
+user asks to undo or revert something, use the diffs to find what changed.
 """.strip()
 
 manual_edit_prefix = "I edited the note myself:"

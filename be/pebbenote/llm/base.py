@@ -1,4 +1,4 @@
-from .schemas import Chat, InputKind, Message
+from .schemas import Chat, InputClassification, Message
 
 
 class AIAdapter:
@@ -10,8 +10,11 @@ class AIAdapter:
     async def get_completion(self, chat: Chat) -> str:
         raise NotImplementedError()
 
-    async def classify_input(self, text: str) -> InputKind:
-        """Decides whether the text is note content or a standing instruction"""
+    async def classify_input(self, text: str) -> InputClassification:
+        """
+        Decides whether the text is note content or a standing instruction,
+        and whether the note's history is needed to act on it
+        """
         raise NotImplementedError()
 
     async def rewrite_instruction(self, text: str) -> str:

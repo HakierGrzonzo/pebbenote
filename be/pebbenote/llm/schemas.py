@@ -29,3 +29,9 @@ class InstructionRewrite(BaseModel):
 
 class NoteTitle(BaseModel):
     title: str
+
+
+class InputClassification(BaseModel):
+    kind: InputKind
+    # Whether the past revisions of the note are needed, e.g. for an undo
+    needs_history: bool

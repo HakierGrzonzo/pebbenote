@@ -88,9 +88,31 @@ class OllamaTelemetryTestCase(IsolatedAsyncioTestCase):
         self.adapter._ollama.systemone = AsyncMock(side_effect=ConnectionError())
 
         with self.assertLogs("pebbenote"):
-            kind = await self.adapter.classify_input("buy milk")
+            classification = await self.adapter.classify_input("buy milk")
 
-        self.assertEqual(kind, "note")
+        self.assertEqual(classification.kind, "note")
+        self.assertTrue(classification.needs_history)
         [span] = self.exporter.get_finished_spans()
         self.assertEqual(span.attributes["pebbenote.llm.task"], "classify")
         self.assertEqual(span.attributes["error.type"], "ConnectionError")
+
+    async def test_classifier_answers_kind_and_history(self):
+        def choice(value: str) -> ollama.SystemOneChoiceAnswer:
+            return ollama.SystemOneChoiceAnswer(
+                type="choice", choice=value, probabilities={}, confidence=1
+            )
+
+        self.adapter._ollama.systemone = AsyncMock(
+            return_value=ollama.SystemOneResponse(
+                model="test-model",
+                answers={"kind": choice("note"), "history": choice("history")},
+                usage=ollama.SystemOneUsage(input_tokens=5, output_tokens=1),
+            )
+        )
+
+        classification = await self.adapter.classify_input("undo that")
+
+        self.assertEqual(classification.kind, "note")
+        self.assertTrue(classification.needs_history)
+        questions = self.adapter._ollama.systemone.call_args.kwargs["questions"]
+        self.assertEqual(set(questions), {"kind", "history"})

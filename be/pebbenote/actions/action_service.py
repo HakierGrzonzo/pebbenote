@@ -95,7 +95,8 @@ class NoteActionService:
 
         instructions = await self.instruction_repository.get_instructions()
         instruction_texts = instructions.instructions
-        is_instruction = await self.ai.classify_input(action.action) == "instruction"
+        classification = await self.ai.classify_input(action.action)
+        is_instruction = classification.kind == "instruction"
         if is_instruction:
             instruction = await self.ai.rewrite_instruction(action.action)
             instruction_texts = [*instruction_texts, instruction]
@@ -105,7 +106,11 @@ class NoteActionService:
 
         response = await self.ai.get_completion(
             await self._build_chat(
-                note.note_id, instruction_texts, preamble, user_message
+                note.note_id,
+                instruction_texts,
+                preamble,
+                user_message,
+                with_history=classification.needs_history,
             )
         )
 
@@ -179,9 +184,11 @@ class NoteActionService:
         instructions: list[str],
         preamble: str,
         user_message: str | None,
+        with_history: bool = True,
     ) -> Chat:
+        # Without the history the chat only holds the current note
         revisions = await self.note_repository.list_revisions(
-            note_id, settings.HISTORY_REVISIONS
+            note_id, settings.HISTORY_REVISIONS if with_history else 1
         )
 
         messages = [

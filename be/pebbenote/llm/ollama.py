@@ -16,7 +16,7 @@ from pebbenote.actions.prompts import (
 from ..config import settings
 from .base import AIAdapter
 from .markdown import render_markdown_list
-from .schemas import InputKind, InstructionRewrite, NoteList, NoteTitle
+from .schemas import InputClassification, InstructionRewrite, NoteList, NoteTitle
 from .telemetry import llm_call
 
 logger = getLogger(__name__)
@@ -53,7 +53,7 @@ class OllamaAdapter(AIAdapter):
                 raise
         return render_markdown_list(note)
 
-    async def classify_input(self, text: str) -> InputKind:
+    async def classify_input(self, text: str) -> InputClassification:
         # A failing classifier must never break plain dictation
         try:
             with llm_call(settings.DECISION_MODEL, "classify") as call:
@@ -70,7 +70,17 @@ class OllamaAdapter(AIAdapter):
                                 "should always be formatted, sorted or organized "
                                 "from now on",
                             },
-                        )
+                        ),
+                        "history": SystemOneChoiceQuestion(
+                            instructions="Does the user refer to earlier "
+                            "versions of the note?",
+                            criteria={
+                                "history": "Refers to earlier changes or states "
+                                "of the note: undo, revert, bring back or restore "
+                                "something, as it was before",
+                                "current": "Only needs the note as it is now",
+                            },
+                        ),
                     },
                 )
                 call.record_response(
@@ -78,13 +88,19 @@ class OllamaAdapter(AIAdapter):
                     response.usage.input_tokens,
                     response.usage.output_tokens,
                 )
-                answer = response.answers["kind"]
-                assert isinstance(answer, SystemOneChoiceAnswer)
+                kind = response.answers["kind"]
+                history = response.answers["history"]
+                assert isinstance(kind, SystemOneChoiceAnswer)
+                assert isinstance(history, SystemOneChoiceAnswer)
         except Exception:
+            # Sending the whole history is the safe default
             logger.exception("Decision model failed, treating input as a note")
-            return "note"
+            return InputClassification(kind="note", needs_history=True)
 
-        return "instruction" if answer.choice == "instruction" else "note"
+        return InputClassification(
+            kind="instruction" if kind.choice == "instruction" else "note",
+            needs_history=history.choice == "history",
+        )
 
     async def rewrite_instruction(self, text: str) -> str:
         with llm_call(
