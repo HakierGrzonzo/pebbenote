@@ -121,12 +121,19 @@ class OllamaAdapter(AIAdapter):
             content = response.message.content
             assert content is not None
             try:
-                return InstructionRewrite.model_validate_json(content).instruction
+                instruction = InstructionRewrite.model_validate_json(
+                    content
+                ).instruction
             except ValidationError:
                 logger.exception(
                     "LLM returned data not matching the instruction schema"
                 )
                 raise
+        # An instruction about capital letters gets the model to lowercase the
+        # sentence itself
+        if instruction.lower().startswith("i should"):
+            instruction = "I should" + instruction[len("I should") :]
+        return instruction
 
     async def generate_title(self, note: str) -> str:
         with llm_call(self.model, "title", temperature=self.temperature) as call:

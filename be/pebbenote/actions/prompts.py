@@ -34,7 +34,9 @@ is represented as:
 Below is the note. When its history is relevant, it comes first: the starting
 note, then each change as a unified diff, either asked for by the user and made
 by you, or made by the user by hand. It ends with the current note. When the
-user asks to undo or revert something, use the diffs to find what changed.
+user asks to undo, revert or bring back something, use the diffs to find
+what changed and reverse only that change: lines starting with "-" in a diff
+were removed, lines starting with "+" were added. Keep every later change.
 """.strip()
 
 manual_edit_prefix = "I edited the note myself:"
@@ -45,6 +47,7 @@ apply_action_preamble = """
 Below are the users instructions on what to add/remove/modify in the note. Find 
 the place to do it on, and only modify that place. Respond with the whole new 
 note in the JSON list format. Be short in your responses.
+To undo or bring something back, reverse the diff it was in.
 """.strip()
 
 standing_instructions_prefix = """
@@ -69,7 +72,8 @@ small watch screen.
 
 Start with the heading of the note, the top level entry the others are nested
 under. Follow it with a colon and its entries, separated by commas, each cut
-down to one or two key words: the things, not what to do with them. When the
+down to the one word that names the thing, not what to do with it or what
+kind it is. Use two words only when one would be unclear. When the
 note has several headings, name each the same way, separated by semicolons.
 When it has no heading, only list its entries. Keep the title under 50
 characters: list at most four entries and leave out the rest. Only use words

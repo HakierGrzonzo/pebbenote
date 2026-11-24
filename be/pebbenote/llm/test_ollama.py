@@ -116,3 +116,12 @@ class OllamaTelemetryTestCase(IsolatedAsyncioTestCase):
         self.assertTrue(classification.needs_history)
         questions = self.adapter._ollama.systemone.call_args.kwargs["questions"]
         self.assertEqual(set(questions), {"kind", "history"})
+
+    async def test_rewritten_instruction_starts_with_a_capital(self):
+        self.adapter._ollama.chat.return_value = chat_response(
+            '{"instruction": "i should never use capital letters."}'
+        )
+
+        instruction = await self.adapter.rewrite_instruction("no capitals")
+
+        self.assertEqual(instruction, "I should never use capital letters.")
