@@ -82,7 +82,7 @@ services:
       POSTGRES_APP_USER: pebbenote_app
       POSTGRES_APP_PASSWORD: pebbenote_app
       OLLAMA_HOST: "localhost"
-      CHAT_MODEL: ${CHAT_MODEL:-gemma4:e2b}
+      CHAT_MODEL: ${CHAT_MODEL:-gemma4:e4b}
       DECISION_MODEL: ${DECISION_MODEL:-nimble}
       CHAT_TEMPERATURE: ${CHAT_TEMPERATURE:-0}
       OIDC_ISSUER: "http://localhost:8080/realms/pebbenote"
@@ -118,7 +118,7 @@ services:
       POSTGRES_APP_USER: pebbenote_app
       POSTGRES_APP_PASSWORD: pebbenote_app
       OLLAMA_HOST: "localhost"
-      CHAT_MODEL: ${CHAT_MODEL:-gemma4:e2b}
+      CHAT_MODEL: ${CHAT_MODEL:-gemma4:e4b}
       DECISION_MODEL: ${DECISION_MODEL:-nimble}
       CHAT_TEMPERATURE: ${CHAT_TEMPERATURE:-0}
       OIDC_ISSUER: "http://localhost:8080/realms/pebbenote"

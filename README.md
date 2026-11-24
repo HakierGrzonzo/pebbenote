@@ -25,9 +25,9 @@ Requirements:
 - pebble sdk
 
 Ollama (0.35 or newer, for decision models) must run on the host with the
-models pulled: `ollama pull gemma4:e2b` and `ollama pull nimble`.
+models pulled: `ollama pull gemma4:e4b` and `ollama pull nimble`.
 
-The models can be changed with the `CHAT_MODEL` (default `gemma4:e2b`) and
+The models can be changed with the `CHAT_MODEL` (default `gemma4:e4b`) and
 `DECISION_MODEL` (default `nimble`) environment variables. Pull whichever
 models you configure.
 
