@@ -12,18 +12,16 @@ from pebbenote.instructions.exceptions import InstructionsConflict
 from pebbenote.instructions.repository import UserInstructionRepository
 from pebbenote.llm import ai_provider
 from pebbenote.llm.base import AIAdapter
-from pebbenote.llm.schemas import Chat, Message
+from pebbenote.llm.schemas import Chat
 from pebbenote.notes.repository import NoteRepository
 from pebbenote.notes.schemas import NoteModel
 from pebbenote.tables import ActionStatus, utc_now
 
-from .history import build_history
+from .history import build_note_chat
 from .prompts import (
     apply_action_preamble,
-    apply_action_system_prompt,
     apply_instructions_action_text,
     apply_instructions_preamble,
-    standing_instructions_prefix,
 )
 
 logger = getLogger(__name__)
@@ -191,20 +189,4 @@ class NoteActionService:
             note_id, settings.HISTORY_REVISIONS if with_history else 1
         )
 
-        messages = [
-            Message(kind="system", content=apply_action_system_prompt),
-            *build_history(revisions),
-        ]
-        if instructions:
-            bullets = "\n".join(f"- {instruction}" for instruction in instructions)
-            messages.append(
-                Message(
-                    kind="assistant",
-                    content=f"{standing_instructions_prefix}\n{bullets}",
-                )
-            )
-        messages.append(Message(kind="system", content=preamble))
-        if user_message is not None:
-            messages.append(Message(kind="user", content=user_message))
-
-        return Chat(messages=messages)
+        return build_note_chat(revisions, instructions, preamble, user_message)

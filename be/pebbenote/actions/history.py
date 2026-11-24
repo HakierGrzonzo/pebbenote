@@ -2,10 +2,15 @@ from collections.abc import Iterator
 from difflib import unified_diff
 from itertools import pairwise
 
-from pebbenote.llm.schemas import Message
+from pebbenote.llm.schemas import Chat, Message
 from pebbenote.notes.schemas import NoteRevisionModel
 
-from .prompts import manual_edit_prefix, note_now_prefix
+from .prompts import (
+    apply_action_system_prompt,
+    manual_edit_prefix,
+    note_now_prefix,
+    standing_instructions_prefix,
+)
 
 
 def note_diff(before: str, after: str) -> str:
@@ -35,3 +40,33 @@ def build_history(revisions: list[NoteRevisionModel]) -> Iterator[Message]:
 
     # Small models drift back to older states, so restate the current one
     yield Message(kind="user", content=f"{note_now_prefix}\n{revisions[-1].content}")
+
+
+def build_note_chat(
+    revisions: list[NoteRevisionModel],
+    instructions: list[str],
+    preamble: str,
+    user_message: str | None,
+) -> Chat:
+    """
+    The chat that asks for a new version of the note: the history of the given
+    revisions, the standing instructions, then the preamble and the user's
+    request, if there is one
+    """
+    messages = [
+        Message(kind="system", content=apply_action_system_prompt),
+        *build_history(revisions),
+    ]
+    if instructions:
+        bullets = "\n".join(f"- {instruction}" for instruction in instructions)
+        messages.append(
+            Message(
+                kind="assistant",
+                content=f"{standing_instructions_prefix}\n{bullets}",
+            )
+        )
+    messages.append(Message(kind="system", content=preamble))
+    if user_message is not None:
+        messages.append(Message(kind="user", content=user_message))
+
+    return Chat(messages=messages)
