@@ -25,3 +25,7 @@ class NoteList(BaseModel):
 
 class InstructionRewrite(BaseModel):
     instruction: str
+
+
+class NoteTitle(BaseModel):
+    title: str

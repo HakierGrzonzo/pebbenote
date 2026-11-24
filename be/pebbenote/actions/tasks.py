@@ -9,8 +9,10 @@ from pebbenote.actions.action_service import NoteActionService
 from pebbenote.auth import get_current_user
 from pebbenote.config import settings
 from pebbenote.db import get_db
-from pebbenote.notes.exceptions import NoteDoesNotExist
+from pebbenote.notes.exceptions import NoteConflict, NoteDoesNotExist
+from pebbenote.notes.repository import NoteRepository
 from pebbenote.notes.schemas import NoteModel
+from pebbenote.notes.title_service import NoteTitleService
 from pebbenote.versioning import VersionConflict
 from pebbenote.worker import broker
 
@@ -80,6 +82,7 @@ async def apply_action_task(
     # The next task uses its own connection, so the result must be visible
     await session.commit()
     await start_action(next_action, owner)
+    await start_title(note.note_id, owner)
     return note
 
 
@@ -94,6 +97,7 @@ async def apply_instructions_task(
     owner: str,
     session: Annotated[AsyncSession, TaskiqDepends(get_db)],
     service: Annotated[NoteActionService, TaskiqDepends()],
+    notes: Annotated[NoteRepository, TaskiqDepends()],
     reruns: int = 0,
 ) -> NoteModel | None:
     """
@@ -101,7 +105,8 @@ async def apply_instructions_task(
     when the note or the instructions change while the LLM is busy.
     """
     try:
-        return await service.apply_instructions(UUID(note_id))
+        before = await notes.get_note_by_id(UUID(note_id))
+        note = await service.apply_instructions(before.note_id)
     except NoteDoesNotExist:
         await session.rollback()
         logger.info("Note %s was deleted, not applying the instructions", note_id)
@@ -115,3 +120,38 @@ async def apply_instructions_task(
             note_id=note_id, owner=owner, reruns=reruns + 1
         )
         return None
+
+    if note.version != before.version:
+        # The title task uses its own connection
+        await session.commit()
+        await start_title(note.note_id, owner)
+    return note
+
+
+@broker.task(retry_on_error=True, max_retries=settings.ACTION_MAX_RETRIES)
+async def generate_title_task(
+    note_id: str,
+    owner: str,
+    session: Annotated[AsyncSession, TaskiqDepends(get_db)],
+    service: Annotated[NoteTitleService, TaskiqDepends()],
+) -> NoteModel | None:
+    """
+    Has the LLM make a title for the note. Until it is stored, the note shows
+    its previous title, or its first line. When the note changes meanwhile,
+    the task of that change makes the title instead.
+    """
+    try:
+        return await service.generate_title(UUID(note_id))
+    except NoteDoesNotExist:
+        await session.rollback()
+        logger.info("Note %s was deleted, not making a title", note_id)
+        return None
+    except NoteConflict:
+        await session.rollback()
+        logger.info("Note %s has changed, its newer title task takes over", note_id)
+        return None
+
+
+async def start_title(note_id: UUID, owner: str) -> None:
+    """Starts making a title for the note, after its change was committed"""
+    await generate_title_task.kiq(note_id=str(note_id), owner=owner)

@@ -62,6 +62,41 @@ Respond with the whole note in the JSON list format.
 # the history shows it as asked for by the user
 apply_instructions_action_text = "Apply my standing instructions to the note."
 
+generate_title_system_prompt = """
+You name notes. The user gives you a note formatted as a markdown list. Write
+a short one line title for it, so the user can tell their notes apart on a
+small watch screen.
+
+Start with the heading of the note, the top level entry the others are nested
+under. Follow it with a colon and its entries, separated by commas, each cut
+down to one or two key words: the things, not what to do with them. When the
+note has several headings, name each the same way, separated by semicolons.
+When it has no heading, only list its entries. Keep the title under 50
+characters: list at most four entries and leave out the rest. Only use words
+from the note, never words from these examples.
+
+Examples:
+
+- Shopping list:
+    - A
+    - B
+    - C
+becomes "Shopping list: A, B, C"
+
+- feed the cat
+- water plants
+becomes "cat, plants"
+
+- Garden:
+    - prune the old apple tree
+    - fix the broken fence
+- Car:
+    - change the oil
+becomes "Garden: apple tree, fence; Car: oil"
+
+Respond with a JSON object {"title": ...}.
+""".strip()
+
 rewrite_instruction_system_prompt = """
 The user dictated a standing instruction about how their notes should be handled.
 Rewrite it as one short sentence in the first person, starting with "I should",
