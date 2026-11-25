@@ -8,7 +8,6 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 from opentelemetry.trace import SpanKind, StatusCode
-from pydantic import ValidationError
 
 from . import telemetry
 from .ollama import OllamaAdapter
@@ -38,9 +37,7 @@ class OllamaTelemetryTestCase(IsolatedAsyncioTestCase):
         self.chat = Chat(messages=[Message(kind="user", content="buy milk")])
 
     async def test_completion_span_has_genai_attributes(self):
-        self.adapter._ollama.chat.return_value = chat_response(
-            '{"items": [{"text": "milk"}]}'
-        )
+        self.adapter._ollama.chat.return_value = chat_response("- milk")
 
         await self.adapter.get_completion(self.chat)
 
@@ -63,9 +60,7 @@ class OllamaTelemetryTestCase(IsolatedAsyncioTestCase):
 
     async def test_completion_uses_configured_temperature(self):
         self.adapter.temperature = 0.7
-        self.adapter._ollama.chat.return_value = chat_response(
-            '{"items": [{"text": "milk"}]}'
-        )
+        self.adapter._ollama.chat.return_value = chat_response("- milk")
 
         await self.adapter.get_completion(self.chat)
 
@@ -74,15 +69,24 @@ class OllamaTelemetryTestCase(IsolatedAsyncioTestCase):
         [span] = self.exporter.get_finished_spans()
         self.assertEqual(span.attributes["gen_ai.request.temperature"], 0.7)
 
-    async def test_invalid_answer_marks_span_as_error(self):
-        self.adapter._ollama.chat.return_value = chat_response("not json")
+    async def test_completion_drops_a_code_block(self):
+        self.adapter._ollama.chat.return_value = chat_response(
+            "```markdown\n- milk\n    - oat\n```"
+        )
 
-        with self.assertRaises(ValidationError), self.assertLogs("pebbenote"):
+        note = await self.adapter.get_completion(self.chat)
+
+        self.assertEqual(note, "- milk\n    - oat")
+
+    async def test_failed_chat_marks_span_as_error(self):
+        self.adapter._ollama.chat.side_effect = ConnectionError()
+
+        with self.assertRaises(ConnectionError):
             await self.adapter.get_completion(self.chat)
 
         [span] = self.exporter.get_finished_spans()
         self.assertEqual(span.status.status_code, StatusCode.ERROR)
-        self.assertEqual(span.attributes["error.type"], "ValidationError")
+        self.assertEqual(span.attributes["error.type"], "ConnectionError")
 
     async def test_failing_classifier_still_records_the_error(self):
         self.adapter._ollama.systemone = AsyncMock(side_effect=ConnectionError())
@@ -119,7 +123,7 @@ class OllamaTelemetryTestCase(IsolatedAsyncioTestCase):
 
     async def test_rewritten_instruction_starts_with_a_capital(self):
         self.adapter._ollama.chat.return_value = chat_response(
-            '{"instruction": "i should never use capital letters."}'
+            "i should never use capital letters."
         )
 
         instruction = await self.adapter.rewrite_instruction("no capitals")

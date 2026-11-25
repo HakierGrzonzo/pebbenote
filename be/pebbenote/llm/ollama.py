@@ -6,7 +6,6 @@ from ollama import (
     SystemOneChoiceAnswer,
     SystemOneChoiceQuestion,
 )
-from pydantic import ValidationError
 
 from pebbenote.actions.prompts import (
     generate_title_system_prompt,
@@ -15,8 +14,7 @@ from pebbenote.actions.prompts import (
 
 from ..config import settings
 from .base import AIAdapter
-from .markdown import render_markdown_list
-from .schemas import InputClassification, InstructionRewrite, NoteList, NoteTitle
+from .schemas import InputClassification
 from .telemetry import llm_call
 
 logger = getLogger(__name__)
@@ -29,29 +27,21 @@ class OllamaAdapter(AIAdapter):
     def __init__(self) -> None:
         self._ollama = AsyncClient()
 
-    async def get_completion(self, chat):
-        messages = [
-            *self.map_messages(chat.messages),
-        ]
-        logger.info("Starting chat")
-        with llm_call(self.model, "note", temperature=self.temperature) as call:
+    async def _chat(self, task: str, messages: list) -> str:
+        with llm_call(self.model, task, temperature=self.temperature) as call:
             response: ChatResponse = await self._ollama.chat(
                 model=self.model,
                 messages=messages,
-                format=NoteList.model_json_schema(),
                 options={"temperature": self.temperature},
             )
             call.record_response(
                 response.model, response.prompt_eval_count, response.eval_count
             )
-            content = response.message.content
-            assert content is not None
-            try:
-                note = NoteList.model_validate_json(content)
-            except ValidationError:
-                logger.exception("LLM returned data not matching the note schema")
-                raise
-        return render_markdown_list(note)
+        return _strip_fences(response.message.content or "")
+
+    async def get_completion(self, chat):
+        logger.info("Starting chat")
+        return await self._chat("note", self.map_messages(chat.messages))
 
     async def classify_input(self, text: str) -> InputClassification:
         # A failing classifier must never break plain dictation
@@ -103,32 +93,14 @@ class OllamaAdapter(AIAdapter):
         )
 
     async def rewrite_instruction(self, text: str) -> str:
-        with llm_call(
-            self.model, "rewrite_instruction", temperature=self.temperature
-        ) as call:
-            response: ChatResponse = await self._ollama.chat(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": rewrite_instruction_system_prompt},
-                    {"role": "user", "content": text},
-                ],
-                format=InstructionRewrite.model_json_schema(),
-                options={"temperature": self.temperature},
-            )
-            call.record_response(
-                response.model, response.prompt_eval_count, response.eval_count
-            )
-            content = response.message.content
-            assert content is not None
-            try:
-                instruction = InstructionRewrite.model_validate_json(
-                    content
-                ).instruction
-            except ValidationError:
-                logger.exception(
-                    "LLM returned data not matching the instruction schema"
-                )
-                raise
+        instruction = await self._chat(
+            "rewrite_instruction",
+            [
+                {"role": "system", "content": rewrite_instruction_system_prompt},
+                {"role": "user", "content": text},
+            ],
+        )
+        instruction = " ".join(instruction.split()).strip('"')
         # An instruction about capital letters gets the model to lowercase the
         # sentence itself
         if instruction.lower().startswith("i should"):
@@ -136,25 +108,22 @@ class OllamaAdapter(AIAdapter):
         return instruction
 
     async def generate_title(self, note: str) -> str:
-        with llm_call(self.model, "title", temperature=self.temperature) as call:
-            response: ChatResponse = await self._ollama.chat(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": generate_title_system_prompt},
-                    {"role": "user", "content": note},
-                ],
-                format=NoteTitle.model_json_schema(),
-                options={"temperature": self.temperature},
-            )
-            call.record_response(
-                response.model, response.prompt_eval_count, response.eval_count
-            )
-            content = response.message.content
-            assert content is not None
-            try:
-                title = NoteTitle.model_validate_json(content).title
-            except ValidationError:
-                logger.exception("LLM returned data not matching the title schema")
-                raise
+        title = await self._chat(
+            "title",
+            [
+                {"role": "system", "content": generate_title_system_prompt},
+                {"role": "user", "content": note},
+            ],
+        )
         # A title is one line
-        return " ".join(title.split())
+        return " ".join(title.split()).strip('"')
+
+
+def _strip_fences(text: str) -> str:
+    """The answer without a surrounding ``` code block, models like to add one"""
+    lines = text.strip().splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].startswith("```"):
+        lines = lines[:-1]
+    return "\n".join(lines).strip()

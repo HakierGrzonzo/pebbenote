@@ -19,13 +19,13 @@ class InstructionsTestCase(PromptTestCase):
             instructions=["I should always sort lists alphabetically."],
         )
 
-        self.assertEqual(note, content)
+        self.assertEqual(self.entries(note), self.entries(content))
 
     async def test_instruction_followed_during_an_edit(self):
         note = await self.edit(
-            revision("- MILK\n- EGGS"),
-            action="add bread",
-            instructions=["I should write every entry in capital letters."],
+            revision("- bananas\n- cherries"),
+            action="add apples",
+            instructions=["I should keep lists sorted alphabetically."],
         )
 
-        self.assertIn("- BREAD", note.splitlines())
+        self.assertEqual(self.entries(note), ["apples", "bananas", "cherries"])

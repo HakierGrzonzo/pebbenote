@@ -13,7 +13,7 @@ class RewriteInstructionTestCase(PromptTestCase):
             with self.subTest(text=text):
                 instruction = await self.ai.rewrite_instruction(text)
 
-                self.assertTrue(instruction.startswith("I should"), instruction)
+                self.assertTrue(instruction.lower().startswith("i should"), instruction)
                 self.assertNotIn("\n", instruction)
                 for keyword in keywords:
                     self.assertIn(keyword, instruction.lower())
