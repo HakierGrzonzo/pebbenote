@@ -25,10 +25,10 @@ Requirements:
 - pebble sdk
 
 Ollama (0.35 or newer, for decision models) must run on the host with the
-models pulled: `ollama pull gemma4:e4b` and `ollama pull nimble`.
+models pulled: `ollama pull gemma4:e4b` and `ollama pull tev1:0.8b`.
 
 The models can be changed with the `CHAT_MODEL` (default `gemma4:e4b`) and
-`DECISION_MODEL` (default `nimble`) environment variables. Pull whichever
+`DECISION_MODEL` (default `tev1:0.8b`) environment variables. Pull whichever
 models you configure.
 
 `CHAT_TEMPERATURE` (default `0`) sets the sampling temperature of the chat
