@@ -8,7 +8,6 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
     InMemorySpanExporter,
 )
 from opentelemetry.trace import SpanKind, StatusCode
-from pydantic import ValidationError
 
 from . import telemetry
 from .ollama import OllamaAdapter
@@ -38,9 +37,7 @@ class OllamaTelemetryTestCase(IsolatedAsyncioTestCase):
         self.chat = Chat(messages=[Message(kind="user", content="buy milk")])
 
     async def test_completion_span_has_genai_attributes(self):
-        self.adapter._ollama.chat.return_value = chat_response(
-            '{"items": [{"text": "milk"}]}'
-        )
+        self.adapter._ollama.chat.return_value = chat_response("- milk")
 
         await self.adapter.get_completion(self.chat)
 
@@ -63,9 +60,7 @@ class OllamaTelemetryTestCase(IsolatedAsyncioTestCase):
 
     async def test_completion_uses_configured_temperature(self):
         self.adapter.temperature = 0.7
-        self.adapter._ollama.chat.return_value = chat_response(
-            '{"items": [{"text": "milk"}]}'
-        )
+        self.adapter._ollama.chat.return_value = chat_response("- milk")
 
         await self.adapter.get_completion(self.chat)
 
@@ -74,23 +69,63 @@ class OllamaTelemetryTestCase(IsolatedAsyncioTestCase):
         [span] = self.exporter.get_finished_spans()
         self.assertEqual(span.attributes["gen_ai.request.temperature"], 0.7)
 
-    async def test_invalid_answer_marks_span_as_error(self):
-        self.adapter._ollama.chat.return_value = chat_response("not json")
+    async def test_completion_drops_a_code_block(self):
+        self.adapter._ollama.chat.return_value = chat_response(
+            "```markdown\n- milk\n    - oat\n```"
+        )
 
-        with self.assertRaises(ValidationError), self.assertLogs("pebbenote"):
+        note = await self.adapter.get_completion(self.chat)
+
+        self.assertEqual(note, "- milk\n    - oat")
+
+    async def test_failed_chat_marks_span_as_error(self):
+        self.adapter._ollama.chat.side_effect = ConnectionError()
+
+        with self.assertRaises(ConnectionError):
             await self.adapter.get_completion(self.chat)
 
         [span] = self.exporter.get_finished_spans()
         self.assertEqual(span.status.status_code, StatusCode.ERROR)
-        self.assertEqual(span.attributes["error.type"], "ValidationError")
+        self.assertEqual(span.attributes["error.type"], "ConnectionError")
 
     async def test_failing_classifier_still_records_the_error(self):
         self.adapter._ollama.systemone = AsyncMock(side_effect=ConnectionError())
 
         with self.assertLogs("pebbenote"):
-            kind = await self.adapter.classify_input("buy milk")
+            classification = await self.adapter.classify_input("buy milk")
 
-        self.assertEqual(kind, "note")
+        self.assertEqual(classification.kind, "note")
+        self.assertTrue(classification.needs_history)
         [span] = self.exporter.get_finished_spans()
         self.assertEqual(span.attributes["pebbenote.llm.task"], "classify")
         self.assertEqual(span.attributes["error.type"], "ConnectionError")
+
+    async def test_classifier_answers_kind_and_history(self):
+        def choice(value: str) -> ollama.SystemOneChoiceAnswer:
+            return ollama.SystemOneChoiceAnswer(
+                type="choice", choice=value, probabilities={}, confidence=1
+            )
+
+        self.adapter._ollama.systemone = AsyncMock(
+            return_value=ollama.SystemOneResponse(
+                model="test-model",
+                answers={"kind": choice("note"), "history": choice("history")},
+                usage=ollama.SystemOneUsage(input_tokens=5, output_tokens=1),
+            )
+        )
+
+        classification = await self.adapter.classify_input("undo that")
+
+        self.assertEqual(classification.kind, "note")
+        self.assertTrue(classification.needs_history)
+        questions = self.adapter._ollama.systemone.call_args.kwargs["questions"]
+        self.assertEqual(set(questions), {"kind", "history"})
+
+    async def test_rewritten_instruction_starts_with_a_capital(self):
+        self.adapter._ollama.chat.return_value = chat_response(
+            "i should never use capital letters."
+        )
+
+        instruction = await self.adapter.rewrite_instruction("no capitals")
+
+        self.assertEqual(instruction, "I should never use capital letters.")

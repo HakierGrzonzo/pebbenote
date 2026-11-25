@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from pebbenote.notes.schemas import NoteRevisionModel
 
-from .history import build_history, note_diff
+from .history import build_history, build_note_chat, note_diff
 
 NOTE_ID = uuid4()
 
@@ -63,4 +63,24 @@ class HistoryTestCase(TestCase):
                 "-- eggs",
                 "+- bread",
             ],
+        )
+
+    def test_note_chat_ends_with_instructions_preamble_and_request(self):
+        chat = build_note_chat(
+            [revision("- milk")], ["I should sort it"], "Do it.", "add eggs"
+        )
+
+        self.assertEqual(
+            [m.kind for m in chat.messages],
+            ["system", "user", "user", "assistant", "system", "user"],
+        )
+        self.assertTrue(chat.messages[3].content.endswith("\n- I should sort it"))
+        self.assertEqual(chat.messages[-2].content, "Do it.")
+        self.assertEqual(chat.messages[-1].content, "add eggs")
+
+    def test_note_chat_without_request_or_instructions(self):
+        chat = build_note_chat([revision("- milk")], [], "Do it.", None)
+
+        self.assertEqual(
+            [m.kind for m in chat.messages], ["system", "user", "user", "system"]
         )

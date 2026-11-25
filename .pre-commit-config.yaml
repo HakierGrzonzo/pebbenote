@@ -27,3 +27,11 @@ repos:
         entry: prettier --write --ignore-unknown
         files: ^pebbenote/src/ts/.*\.(ts|js|json)$
         exclude: ^pebbenote/src/ts-build/
+      # Sends the prompts to the real models, needs Ollama with the models
+      # pulled. Without it: SKIP=prompt-tests git commit ...
+      - id: prompt-tests
+        name: prompt tests (Ollama)
+        language: system
+        entry: bash -c 'cd be && PEBBENOTE_PROMPT_TESTS=1 poetry run python -m unittest discover -s pebbenote/prompt_tests -t .'
+        pass_filenames: false
+        files: ^be/pebbenote/(actions/(prompts|history)\.py|llm/|config\.py|prompt_tests/)

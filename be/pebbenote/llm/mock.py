@@ -1,7 +1,7 @@
 from typing import Literal
 
 from .base import AIAdapter
-from .schemas import Chat, InputKind
+from .schemas import Chat, InputClassification, InputKind
 
 type CallType = Literal["attachment", "chat"]
 
@@ -17,6 +17,7 @@ class MockAdapter(AIAdapter):
             "chat": None,
         }
         self.input_kind: InputKind = "note"
+        self.needs_history = True
         self.rewritten_instruction = "I should follow the instruction"
         self.title = "A title"
         # The notes generate_title was called with
@@ -37,8 +38,10 @@ class MockAdapter(AIAdapter):
             raise Exception("Result is not set for the mock ai adapter")
         return result
 
-    async def classify_input(self, text: str) -> InputKind:
-        return self.input_kind
+    async def classify_input(self, text: str) -> InputClassification:
+        return InputClassification(
+            kind=self.input_kind, needs_history=self.needs_history
+        )
 
     async def rewrite_instruction(self, text: str) -> str:
         return self.rewritten_instruction

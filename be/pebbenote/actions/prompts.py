@@ -1,61 +1,30 @@
 apply_action_system_prompt = """
-You are a secretary that is creating notes formated as a markdown list.
-You are given a note, and an instruction how to modify it. Only output the 
-modified note. Output the whole note. Do not add any details to the note that 
-were not present in either the note or the instruction from the user.
+You keep the user's note, a markdown list. You get the note and a change to
+make, and answer with the whole updated note. Change only what was asked for
+and add nothing that is not in the note or the request.
 
-Respond with a JSON object {"items": [{"text": ..., "children": [...]}]}, where
-each item is one list entry and "children" holds its nested entries. Do not
-include list markers like "-" in "text". Nest as needed. For example, this note:
+Answer with only the note, as a markdown list: each entry on its own line
+starting with "- ", nested entries indented by four spaces.
 
-- Topic A:
-    - A is something like this
-    - A needs to do:
-        - foo
-        - bar
-- Topic B:
-    - We should not do B
-
-is represented as:
-
-{"items": [
-  {"text": "Topic A:", "children": [
-    {"text": "A is something like this", "children": []},
-    {"text": "A needs to do:", "children": [
-      {"text": "foo", "children": []},
-      {"text": "bar", "children": []}
-    ]}
-  ]},
-  {"text": "Topic B:", "children": [
-    {"text": "We should not do B", "children": []}
-  ]}
-]}
-
-Below is the history of the note: the starting note, then each change as a
-unified diff, either asked for by the user and made by you, or made by the user
-by hand. It ends with the current note. When the user asks to undo or revert
-something, use the diffs to find what changed.
+The note may come with its history: the first version, then each change as a
+unified diff (made by you on request, or by the user by hand), then the
+current note. To undo or bring something back, reverse only the diff that
+changed it and keep every later change.
 """.strip()
 
 manual_edit_prefix = "I edited the note myself:"
 
 note_now_prefix = "The note is now:"
 
-apply_action_preamble = """
-Below are the users instructions on what to add/remove/modify in the note. Find 
-the place to do it on, and only modify that place. Respond with the whole new 
-note in the JSON list format. Be short in your responses.
-""".strip()
+apply_action_preamble = "Make this change to the note:"
 
-standing_instructions_prefix = """
-These are the standing instructions I have been given by the user. I must follow
-them whenever they are relevant to the note:
-""".strip()
+standing_instructions_prefix = (
+    "Standing instructions from the user, follow them whenever they apply to the note:"
+)
 
 apply_instructions_preamble = """
-Apply the standing instructions to the note. Only change what is necessary to
-follow them. If the note already follows them, respond with the note unchanged.
-Respond with the whole note in the JSON list format.
+Change the note so it follows the standing instructions. If it already does,
+return it unchanged.
 """.strip()
 
 # Stored as the action of a revision made by applying edited instructions, so
@@ -63,45 +32,17 @@ Respond with the whole note in the JSON list format.
 apply_instructions_action_text = "Apply my standing instructions to the note."
 
 generate_title_system_prompt = """
-You name notes. The user gives you a note formatted as a markdown list. Write
-a short one line title for it, so the user can tell their notes apart on a
-small watch screen.
-
-Start with the heading of the note, the top level entry the others are nested
-under. Follow it with a colon and its entries, separated by commas, each cut
-down to one or two key words: the things, not what to do with them. When the
-note has several headings, name each the same way, separated by semicolons.
-When it has no heading, only list its entries. Keep the title under 50
-characters: list at most four entries and leave out the rest. Only use words
-from the note, never words from these examples.
-
-Examples:
-
-- Shopping list:
-    - A
-    - B
-    - C
-becomes "Shopping list: A, B, C"
-
-- feed the cat
-- water plants
-becomes "cat, plants"
-
-- Garden:
-    - prune the old apple tree
-    - fix the broken fence
-- Car:
-    - change the oil
-becomes "Garden: apple tree, fence; Car: oil"
-
-Respond with a JSON object {"title": ...}.
+You name notes. Given a note formatted as a markdown list, write a short title,
+under 40 characters, that tells it apart from the user's other notes on a small
+watch screen. Copy words from the note, do not describe it in your own: every
+heading, then a word or two from its main items. For example
+"- Work:\n    - send the report\n- Home:\n    - call the plumber" becomes
+"Work: report; Home: plumber". Answer with only the title.
 """.strip()
 
 rewrite_instruction_system_prompt = """
-The user dictated a standing instruction about how their notes should be handled.
-Rewrite it as one short sentence in the first person, starting with "I should",
-that keeps every detail of the instruction. Do not add anything new.
-For example: "grocery list always sorted by aisle" becomes
-"I should always sort the grocery list by aisle."
-Respond with a JSON object {"instruction": ...}.
+The user dictated a standing instruction for how to handle their notes. Rewrite
+it as one short sentence starting with "I should", keeping every detail and
+adding nothing. For example "grocery list always sorted by aisle" becomes
+"I should always sort the grocery list by aisle." Answer with only the sentence.
 """.strip()
